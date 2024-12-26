@@ -9,7 +9,7 @@ import android.util.Log
 import android.view.SurfaceHolder
 
 /**
- * MediaPlayerManager 负责管理 MediaPlayer 的初始化、播放、暂停、重播等操作
+ * MediaPlayerManager 负责管理 MediaPlayer 的初始化、播放、暂停、重播等操作。
  */
 class MediaPlayerManager(
     private val context: Context,
@@ -17,11 +17,12 @@ class MediaPlayerManager(
 ) {
 
     private var mediaPlayer: MediaPlayer? = null
+    private var soundEffectManager: SoundEffectManager? = null
 
     /**
-     * 初始化 MediaPlayer 并准备播放
-     * @param fileUri 要播放的文件的 Uri
-     * @param isVideo 是否是视频文件
+     * 初始化 MediaPlayer 并准备播放。
+     * @param fileUri 要播放的文件的 Uri。
+     * @param isVideo 是否是视频文件。
      */
     fun initMediaPlayer(fileUri: Uri, isVideo: Boolean) {
         release() // 释放之前的 MediaPlayer
@@ -56,7 +57,47 @@ class MediaPlayerManager(
     }
 
     /**
-     * 播放或恢复播放
+     * 设置播放界面。
+     * @param holder SurfaceHolder。
+     */
+    fun setDisplay(holder: SurfaceHolder) {
+        mediaPlayer?.setDisplay(holder)
+    }
+
+    /**
+     * 获取音频会话 ID。
+     * @return 音频会话 ID，如果 MediaPlayer 未初始化则返回错误码。
+     */
+    fun getAudioSessionId(): Int {
+        return mediaPlayer?.audioSessionId ?: AudioManager.ERROR
+    }
+
+    /**
+     * 设置均衡器预设。
+     * @param presetIndex 预设索引。
+     */
+    fun setEqualizerPreset(presetIndex: Short) {
+        soundEffectManager?.setEqualizerPreset(presetIndex)
+    }
+
+    /**
+     * 启用或禁用虚拟化器（立体环绕）。
+     * @param enabled 是否启用。
+     */
+    fun enableVirtualizer(enabled: Boolean) {
+        soundEffectManager?.enableVirtualizer(enabled)
+    }
+
+    /**
+     * 启用或禁用低音增强。
+     * @param enabled 是否启用。
+     */
+    fun enableBassBoost(enabled: Boolean) {
+        soundEffectManager?.enableBassBoost(enabled)
+    }
+
+    /**
+     * 播放或恢复播放。
      */
     fun play() {
         mediaPlayer?.let {
@@ -67,7 +108,7 @@ class MediaPlayerManager(
     }
 
     /**
-     * 暂停播放
+     * 暂停播放。
      */
     fun pause() {
         mediaPlayer?.let {
@@ -78,7 +119,7 @@ class MediaPlayerManager(
     }
 
     /**
-     * 从头开始重播
+     * 从头开始重播。
      */
     fun replay() {
         mediaPlayer?.let {
@@ -88,8 +129,8 @@ class MediaPlayerManager(
     }
 
     /**
-     * 设置播放速度
-     * @param speed 播放速度，例如 1.0f 为正常速度
+     * 设置播放速度。
+     * @param speed 播放速度，例如 1.0f 为正常速度。
      */
     fun setPlaybackSpeed(speed: Float) {
         mediaPlayer?.let {
@@ -104,97 +145,76 @@ class MediaPlayerManager(
     }
 
     /**
-     * 跳转到指定位置
-     * @param position 毫秒
+     * 跳转到指定位置。
+     * @param position 毫秒。
      */
     fun seekTo(position: Int) {
         mediaPlayer?.seekTo(position)
     }
 
     /**
-     * 获取当前播放位置
-     * @return 当前播放位置，单位毫秒
+     * 获取当前播放位置。
+     * @return 当前播放位置，单位毫秒。
      */
     fun getCurrentPosition(): Int {
         return mediaPlayer?.currentPosition ?: 0
     }
 
     /**
-     * 获取媒体总时长
-     * @return 总时长，单位毫秒
+     * 获取媒体总时长。
+     * @return 总时长，单位毫秒。
      */
     fun getDuration(): Int {
         return mediaPlayer?.duration ?: 0
     }
 
     /**
-     * 是否正在播放
-     * @return true 表示正在播放，false 表示未播放
-     */
-    fun isPlaying(): Boolean {
-        return mediaPlayer?.isPlaying ?: false
-    }
-
-    /**
-     * 获取音频会话 ID
-     * @return 音频会话 ID，如果 MediaPlayer 未初始化则返回错误码
-     */
-    fun getAudioSessionId(): Int {
-        return mediaPlayer?.audioSessionId ?: AudioManager.ERROR
-    }
-
-    /**
-     * 获取视频宽度
-     * @return 视频宽度，如果 MediaPlayer 未初始化则返回 0
+     * 获取视频宽度。
+     * @return 视频宽度，如果不是视频则返回 0。
      */
     fun getVideoWidth(): Int {
         return mediaPlayer?.videoWidth ?: 0
     }
 
     /**
-     * 获取视频高度
-     * @return 视频高度，如果 MediaPlayer 未初始化则返回 0
+     * 获取视频高度。
+     * @return 视频高度，如果不是视频则返回 0。
      */
     fun getVideoHeight(): Int {
         return mediaPlayer?.videoHeight ?: 0
     }
 
     /**
-     * 设置显示界面
-     * @param holder SurfaceHolder
+     * 判断是否正在播放。
+     * @return true 表示正在播放，false 表示未播放。
      */
-    fun setDisplay(holder: SurfaceHolder) {
-        mediaPlayer?.setDisplay(holder)
+    fun isPlaying(): Boolean {
+        return mediaPlayer?.isPlaying ?: false
     }
 
     /**
-     * 释放 MediaPlayer 资源
+     * 初始化音效管理器。
+     */
+    fun initSoundEffects() {
+        soundEffectManager = SoundEffectManager(getAudioSessionId())
+    }
+
+    /**
+     * 释放 MediaPlayer 和音效资源。
      */
     fun release() {
-        mediaPlayer?.release()
-        mediaPlayer = null
+        try {
+            mediaPlayer?.release()
+            mediaPlayer = null
+            soundEffectManager?.release()
+            soundEffectManager = null
+            Log.d(TAG, "MediaPlayer 和 SoundEffectManager 已释放。")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing MediaPlayer: ${e.message}", e)
+        }
     }
 
     companion object {
         private const val TAG = "MediaPlayerManager"
     }
-}
-
-/**
- * MediaPlayerManager 的回调接口
- */
-interface MediaPlayerListener {
-    /**
-     * 当 MediaPlayer 准备完成时回调
-     * @param duration 媒体总时长，单位毫秒
-     * @param isVideo 是否是视频文件
-     * @param videoWidth 视频宽度，仅当 isVideo 为 true 时有效
-     * @param videoHeight 视频高度，仅当 isVideo 为 true 时有效
-     */
-    fun onPrepared(duration: Int, isVideo: Boolean, videoWidth: Int, videoHeight: Int)
-
-    /**
-     * 当媒体播放完成时回调
-     */
-    fun onCompletion()
 }

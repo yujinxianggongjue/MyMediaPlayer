@@ -1,3 +1,4 @@
+// VisualizerView.kt
 package com.example.mymediaplayer
 
 import android.content.Context
@@ -6,23 +7,24 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.util.AttributeSet
-import android.view.MotionEvent
+import android.util.Log
 import android.view.View
 import kotlin.math.abs
+import kotlin.math.sqrt
 
 /**
  * VisualizerView 是自定义视图，用于显示音频可视化效果。
  * 支持波形、柱状图和折线图三种可视化类型。
  */
 class VisualizerView : View {
+    private var currentType: VisualizerType = VisualizerType.WAVEFORM
+
     private var mWaveformBytes: ByteArray? = null // 存储波形数据
     private var mFftBytes: ByteArray? = null // 存储 FFT 数据
     private var mPoints: FloatArray? = null // 存储绘制线条的点
     private val mRect = Rect() // 用于绘制区域
 
     private val mForePaint = Paint() // 绘图画笔
-
-    private var type = 0 // 当前可视化类型：0 - 波形，1 - 柱状图，2 - 折线图
 
     constructor(context: Context?) : super(context) {
         init()
@@ -63,20 +65,12 @@ class VisualizerView : View {
     }
 
     /**
-     * 切换可视化类型：波形 -> 柱状图 -> 折线图 -> 波形 ...
+     * 设置可视化效果类型
      */
-    fun toggleVisualizationType() {
-        type = (type + 1) % 3
-        invalidate()
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        // 触摸事件，点击时切换可视化类型
-        if (event.action == MotionEvent.ACTION_DOWN) {
-            toggleVisualizationType()
-            return true
-        }
-        return super.onTouchEvent(event)
+    fun setVisualizerType(type: VisualizerType) {
+        currentType = type
+        Log.d(TAG, "VisualizerView 类型切换为: $type")
+        invalidate() // 重新绘制视图
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -84,11 +78,19 @@ class VisualizerView : View {
 
         mRect.set(0, 0, width, height)
 
-        when (type) {
-            0 -> drawWaveform(canvas) // 绘制波形
-            1 -> drawBarVisualizer(canvas) // 绘制柱状图
-            2 -> drawLineVisualizer(canvas) // 绘制折线图
-            else -> drawWaveform(canvas) // 默认绘制波形
+        when (currentType) {
+            VisualizerType.WAVEFORM -> {
+                Log.d(TAG, "绘制波形图")
+                drawWaveform(canvas)
+            }
+            VisualizerType.BAR_GRAPH -> {
+                Log.d(TAG, "绘制柱状图")
+                drawBarGraph(canvas)
+            }
+            VisualizerType.LINE_GRAPH -> {
+                Log.d(TAG, "绘制折线图")
+                drawLineGraph(canvas)
+            }
         }
     }
 
@@ -107,9 +109,9 @@ class VisualizerView : View {
 
             for (i in 0 until bytes.size - 1) {
                 val x1 = rectWidth * i / (bytes.size - 1)
-                val y1 = halfHeight + ((bytes[i] + 128) * (halfHeight) / 128f)
+                val y1 = halfHeight + ((bytes[i].toFloat() + 128) * (halfHeight) / 128f)
                 val x2 = rectWidth * (i + 1) / (bytes.size - 1)
-                val y2 = halfHeight + ((bytes[i + 1] + 128) * (halfHeight) / 128f)
+                val y2 = halfHeight + ((bytes[i + 1].toFloat() + 128) * (halfHeight) / 128f)
 
                 points[i * 4] = x1
                 points[i * 4 + 1] = y1
@@ -122,59 +124,82 @@ class VisualizerView : View {
     }
 
     /**
-     * 绘制柱状图可视化，使用 FFT 数据
-     * @param canvas 画布
+     * 绘制柱状图可视化
      */
-    private fun drawBarVisualizer(canvas: Canvas) {
+    private fun drawBarGraph(canvas: Canvas) {
         mFftBytes?.let { bytes ->
+            Log.d(TAG, "开始绘制柱状图")
             val numBars = 50 // 柱状图的柱数
-            val barWidth = mRect.width() / numBars.toFloat()
-            val maxHeight = mRect.height().toFloat()
+            val barWidth = width / numBars.toFloat()
+            val maxHeight = height.toFloat()
 
             for (i in 0 until numBars) {
-                val fftIndex = (i * (bytes.size / 2)) / numBars
-                val magnitude = abs(bytes[fftIndex].toFloat())
-                val barHeight = (magnitude / 128f) * maxHeight
-                canvas.drawRect(
-                    i * barWidth,
-                    mRect.height() - barHeight,
-                    (i + 1) * barWidth - 2,
-                    mRect.height().toFloat(),
-                    mForePaint
-                )
+                // 每个柱子对应的频率索引
+                val fftIndex = i * 2 * (bytes.size / 2) / numBars
+                if (fftIndex + 1 < bytes.size) {
+                    val re = bytes[fftIndex].toFloat()
+                    val im = bytes[fftIndex + 1].toFloat()
+                    val magnitude = sqrt(re * re + im * im)
+
+                    // 归一化幅度值，根据需要调整缩放因子
+                    val normalizedMagnitude = (magnitude / 256f) * maxHeight
+
+                    Log.d(TAG, "Bar $i: magnitude=$magnitude, normalizedHeight=$normalizedMagnitude")
+
+                    canvas.drawRect(
+                        i * barWidth,
+                        height - normalizedMagnitude,
+                        (i + 1) * barWidth - 2,
+                        height.toFloat(),
+                        mForePaint
+                    )
+                }
             }
+            Log.d(TAG, "柱状图绘制完成")
         }
     }
 
     /**
-     * 绘制折线图可视化，使用 FFT 数据
-     * @param canvas 画布
+     * 绘制折线图可视化
      */
-    private fun drawLineVisualizer(canvas: Canvas) {
+    private fun drawLineGraph(canvas: Canvas) {
         mFftBytes?.let { bytes ->
-            mRect.set(0, 0, width, height)
-
-            if (mPoints == null || mPoints!!.size < bytes.size * 4) {
-                mPoints = FloatArray(bytes.size * 4)
+            Log.d(TAG, "开始绘制折线图")
+            if (mPoints == null || mPoints!!.size < (bytes.size / 2 - 1) * 4) {
+                mPoints = FloatArray((bytes.size / 2 - 1) * 4)
             }
 
-            val rectWidth = mRect.width().toFloat()
-            val rectHeight = mRect.height().toFloat()
+            val rectWidth = width.toFloat()
+            val rectHeight = height.toFloat()
             val halfHeight = rectHeight / 2f
 
-            for (i in 0 until bytes.size - 1) {
-                val x1 = rectWidth * i / (bytes.size - 1).toFloat()
-                val y1 = halfHeight + bytes[i] * 2f
-                val x2 = rectWidth * (i + 1) / (bytes.size - 1).toFloat()
-                val y2 = halfHeight + bytes[i + 1] * 2f
+            for (i in 0 until bytes.size / 2 - 1) {
+                val x1 = rectWidth * i / (bytes.size / 2 - 1).toFloat()
+                val y1 = halfHeight + (bytes[i * 2].toFloat() * 2f) // 使用实部计算
+                val x2 = rectWidth * (i + 1) / (bytes.size / 2 - 1).toFloat()
+                val y2 = halfHeight + (bytes[(i + 1) * 2].toFloat() * 2f) // 使用实部计算
 
                 mPoints!![i * 4] = x1
                 mPoints!![i * 4 + 1] = y1
                 mPoints!![i * 4 + 2] = x2
                 mPoints!![i * 4 + 3] = y2
+
+                Log.d(TAG, "Point $i: ($x1, $y1) to ($x2, $y2)")
             }
 
             canvas.drawLines(mPoints!!, mForePaint)
+            Log.d(TAG, "折线图绘制完成")
         }
+    }
+
+    /**
+     * 释放资源
+     */
+    fun release() {
+        // 释放可视化相关资源（如果有）
+    }
+
+    companion object {
+        private const val TAG = "VisualizerView"
     }
 }

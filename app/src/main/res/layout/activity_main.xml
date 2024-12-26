@@ -1,156 +1,292 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/mainLayout"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#F5F5F5"
-    android:padding="16dp">
+    android:fillViewport="true">
 
-    <!-- Video/Album Cover Container -->
-    <FrameLayout
-        android:id="@+id/videoContainer"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="2"
-        android:background="#000"
-        android:visibility="visible">
-
-        <SurfaceView
-            android:id="@+id/surfaceView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-        <ImageView
-            android:id="@+id/ivAlbumCover"
-            android:layout_width="300dp"
-            android:layout_height="300dp"
-            android:layout_gravity="center"
-            android:scaleType="centerCrop"
-            android:src="@drawable/default_album_cover"
-            android:visibility="gone" />
-    </FrameLayout>
-
-    <!-- Music Information -->
     <LinearLayout
-        android:id="@+id/musicInfoLayout"
+        android:id="@+id/mainLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingTop="8dp">
+        android:background="#F5F5F5"
+        android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tvArtist"
+        <!-- Video/Album Cover Container -->
+        <FrameLayout
+            android:id="@+id/videoContainer"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_weight="2"
+            android:background="#000"
+            android:visibility="visible">
+
+            <SurfaceView
+                android:id="@+id/surfaceView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <ImageView
+                android:id="@+id/ivAlbumCover"
+                android:layout_width="300dp"
+                android:layout_height="300dp"
+                android:layout_gravity="center"
+                android:scaleType="centerCrop"
+                android:src="@drawable/default_album_cover"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- Music Information -->
+        <LinearLayout
+            android:id="@+id/musicInfoLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Artist: Unknown"
-            android:textSize="16sp"
-            android:visibility="gone" />
+            android:orientation="vertical"
+            android:paddingTop="8dp">
 
-        <TextView
-            android:id="@+id/tvAlbumName"
+            <TextView
+                android:id="@+id/tvArtist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Artist: Unknown"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvAlbumName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Album: Unknown"
+                android:textSize="16sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Visualizer View -->
+        <com.example.mymediaplayer.VisualizerView
+            android:id="@+id/visualizerView"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:layout_marginTop="8dp"
+            android:background="#EFEFEF" />
+
+        <!-- Playback SeekBar -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Album: Unknown"
-            android:textSize="16sp"
-            android:visibility="gone" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/tvCurrentTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textSize="14sp"
+                android:paddingEnd="8dp" />
+
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tvTotalTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textSize="14sp"
+                android:paddingStart="8dp" />
+        </LinearLayout>
+
+        <!-- Control Buttons -->
+        <LinearLayout
+            android:id="@+id/buttonLayout"
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_marginTop="8dp"
+            android:weightSum="6">
+
+            <Button
+                android:id="@+id/btnPlay"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Play"
+                android:layout_margin="4dp" />
+
+            <Button
+                android:id="@+id/btnPause"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Pause"
+                android:layout_margin="4dp" />
+
+            <Button
+                android:id="@+id/btnReplay"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Replay"
+                android:layout_margin="4dp" />
+
+            <Button
+                android:id="@+id/btnOpenFile"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Open File"
+                android:layout_margin="4dp" />
+
+            <Button
+                android:id="@+id/btnSpeed"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Speed"
+                android:layout_margin="4dp" />
+
+            <Button
+                android:id="@+id/btnEffects"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Effects"
+                android:layout_margin="4dp" />
+        </LinearLayout>
+
+        <!-- Sound Effects Controls -->
+        <LinearLayout
+            android:id="@+id/soundEffectsLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="16dp"
+            android:visibility="gone"> <!-- Initially hidden, toggled by 'Effects' button -->
+
+            <!-- Sound Effects Title -->
+            <TextView
+                android:id="@+id/tvSoundEffects"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sound Effects"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Equalizer Preset Spinner -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    android:id="@+id/tvEqualizer"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:text="Equalizer Preset:"
+                    android:textSize="16sp"
+                    android:layout_weight="1" />
+
+                <Spinner
+                    android:id="@+id/spinnerEqualizer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <!-- Virtualizer Switch -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:id="@+id/tvVirtualizer"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:text="Virtualizer (Surround Sound)"
+                    android:textSize="16sp"
+                    android:layout_weight="1" />
+
+                <Switch
+                    android:id="@+id/switchVirtualizer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <!-- Bass Boost Switch -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:id="@+id/tvBassBoost"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:text="Bass Boost"
+                    android:textSize="16sp"
+                    android:layout_weight="1" />
+
+                <Switch
+                    android:id="@+id/switchBassBoost"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <!-- 新增：Visualizer 功能选择 -->
+            <TextView
+                android:id="@+id/tvVisualizerOptions"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Visualizer Options"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- RadioGroup for Visualizer Selection -->
+            <RadioGroup
+                android:id="@+id/radioGroupVisualizer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <RadioButton
+                    android:id="@+id/rbWaveform"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Waveform"
+                    android:checked="true"
+                    android:layout_marginEnd="16dp"/>
+
+                <RadioButton
+                    android:id="@+id/rbBarGraph"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Bar Graph"
+                    android:layout_marginEnd="16dp"/>
+
+                <RadioButton
+                    android:id="@+id/rbLineGraph"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Line Graph"/>
+            </RadioGroup>
+
+        </LinearLayout>
+
     </LinearLayout>
-
-    <!-- Visualizer View -->
-    <com.example.mymediaplayer.VisualizerView
-        android:id="@+id/visualizerView"
-        android:layout_width="match_parent"
-        android:layout_height="150dp"
-        android:layout_marginTop="8dp"
-        android:background="#EFEFEF" />
-
-    <!-- Playback SeekBar -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginTop="8dp">
-
-        <TextView
-            android:id="@+id/tvCurrentTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="00:00"
-            android:textSize="14sp"
-            android:paddingEnd="8dp" />
-
-        <SeekBar
-            android:id="@+id/seekBar"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1" />
-
-        <TextView
-            android:id="@+id/tvTotalTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="00:00"
-            android:textSize="14sp"
-            android:paddingStart="8dp" />
-    </LinearLayout>
-
-    <!-- Control Buttons -->
-    <LinearLayout
-        android:id="@+id/buttonLayout"
-        android:orientation="horizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:layout_marginTop="8dp"
-        android:weightSum="6">
-
-        <Button
-            android:id="@+id/btnPlay"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Play"
-            android:layout_margin="4dp" />
-
-        <Button
-            android:id="@+id/btnPause"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Pause"
-            android:layout_margin="4dp" />
-
-        <Button
-            android:id="@+id/btnReplay"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Replay"
-            android:layout_margin="4dp" />
-
-        <Button
-            android:id="@+id/btnOpenFile"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Open File"
-            android:layout_margin="4dp" />
-
-        <Button
-            android:id="@+id/btnSpeed"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Speed"
-            android:layout_margin="4dp" />
-
-        <Button
-            android:id="@+id/btnEffects"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Effects"
-            android:layout_margin="4dp" />
-    </LinearLayout>
-</LinearLayout>
+</ScrollView>

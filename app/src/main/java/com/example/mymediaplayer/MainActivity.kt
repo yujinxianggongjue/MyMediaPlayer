@@ -13,9 +13,13 @@ import android.view.SurfaceView
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import java.lang.Exception
+
 
 /**
- * MainActivity 是应用的主活动，负责初始化和协调其他组件
+ * MainActivity 是应用的主活动，负责初始化和协调其他组件。
+ * 它实现了 MediaPlayerListener、VisualizerListener 和 PermissionCallback 接口，
+ * 以处理媒体播放、可视化更新和权限请求的回调。
  */
 class MainActivity : AppCompatActivity(),
     MediaPlayerListener,
@@ -38,6 +42,17 @@ class MainActivity : AppCompatActivity(),
     private lateinit var tvAlbumName: TextView
     private lateinit var ivAlbumCover: ImageView
 
+    // 音效控件
+    private lateinit var spinnerEqualizer: Spinner
+    private lateinit var switchVirtualizer: Switch
+    private lateinit var switchBassBoost: Switch
+
+    // Visualizer 选择控件
+    private lateinit var radioGroupVisualizer: RadioGroup
+    private lateinit var rbWaveform: RadioButton
+    private lateinit var rbBarGraph: RadioButton
+    private lateinit var rbLineGraph: RadioButton
+
     private var musicInfoDisplay: MusicInfoDisplay? = null
 
     private lateinit var handler: Handler
@@ -55,9 +70,9 @@ class MainActivity : AppCompatActivity(),
     private lateinit var visualizerManager: VisualizerManager
     private lateinit var permissionManager: PermissionManager
 
+    // 定义请求码
     companion object {
         private const val REQUEST_CODE_OPEN_FILE = 1
-        private const val REQUEST_CODE_RECORD_AUDIO = 123 // 自定义请求码
         private const val TAG = "MainActivity"
     }
 
@@ -82,6 +97,17 @@ class MainActivity : AppCompatActivity(),
         tvAlbumName = findViewById(R.id.tvAlbumName)
         ivAlbumCover = findViewById(R.id.ivAlbumCover)
 
+        // 初始化新增的音效控件
+        spinnerEqualizer = findViewById(R.id.spinnerEqualizer)
+        switchVirtualizer = findViewById(R.id.switchVirtualizer)
+        switchBassBoost = findViewById(R.id.switchBassBoost)
+
+        // 初始化新增的 Visualizer 选择控件
+        radioGroupVisualizer = findViewById(R.id.radioGroupVisualizer)
+        rbWaveform = findViewById(R.id.rbWaveform)
+        rbBarGraph = findViewById(R.id.rbBarGraph)
+        rbLineGraph = findViewById(R.id.rbLineGraph)
+
         // 初始化 MusicInfoDisplay
         musicInfoDisplay = MusicInfoDisplay(this, tvArtist, tvAlbumName, ivAlbumCover)
 
@@ -94,9 +120,6 @@ class MainActivity : AppCompatActivity(),
 
         // 初始化 MediaPlayerManager
         mediaPlayerManager = MediaPlayerManager(this, this)
-
-        // 初始化 VisualizerManager
-        visualizerManager = VisualizerManager(this)
 
         // 初始化 SurfaceHolder
         val surfaceHolder = surfaceView.holder
@@ -125,7 +148,7 @@ class MainActivity : AppCompatActivity(),
         btnReplay.setOnClickListener { replayPlayback() }
         btnOpenFile.setOnClickListener { openFile() }
         btnSpeed.setOnClickListener { changePlaybackSpeed() }
-        btnEffects.setOnClickListener { toggleVisualizerType() }
+        btnEffects.setOnClickListener { toggleSoundEffects() }
 
         // 默认显示当前播放速度
         updateSpeedButtonText()
@@ -147,6 +170,12 @@ class MainActivity : AppCompatActivity(),
                 // 用户停止拖动进度条
             }
         })
+
+        // 初始化音效选择控件
+        initSoundEffectControls()
+
+        // 初始化 Visualizer 选择监听器
+        initVisualizerSelection()
     }
 
     /**
@@ -163,6 +192,10 @@ class MainActivity : AppCompatActivity(),
     override fun onPermissionDenied() {
         // 禁用音频可视化相关功能
         btnEffects.isEnabled = false
+        // 禁用音效选择控件
+        spinnerEqualizer.isEnabled = false
+        switchVirtualizer.isEnabled = false
+        switchBassBoost.isEnabled = false
     }
 
     /**
@@ -229,10 +262,17 @@ class MainActivity : AppCompatActivity(),
     }
 
     /**
-     * 切换可视化效果类型
+     * 切换音效控件的显示与隐藏
      */
-    private fun toggleVisualizerType() {
-        visualizerView.toggleVisualizationType()
+    private fun toggleSoundEffects() {
+        val soundEffectsLayout: LinearLayout = findViewById(R.id.soundEffectsLayout)
+        if (soundEffectsLayout.visibility == View.GONE) {
+            soundEffectsLayout.visibility = View.VISIBLE
+            btnEffects.text = "Hide Effects"
+        } else {
+            soundEffectsLayout.visibility = View.GONE
+            btnEffects.text = "Effects"
+        }
     }
 
     /**
@@ -244,6 +284,86 @@ class MainActivity : AppCompatActivity(),
             addCategory(Intent.CATEGORY_OPENABLE)
         }
         startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
+    }
+
+    /**
+     * 初始化音效选择控件
+     */
+    private fun initSoundEffectControls() {
+        // 初始化均衡器 Spinner
+        val equalizerPresets = getEqualizerPresets()
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, equalizerPresets)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerEqualizer.adapter = adapter
+
+        spinnerEqualizer.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                mediaPlayerManager.setEqualizerPreset(position.toShort())
+                Log.d(TAG, "均衡器预设选择: $position")
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>) {}
+        }
+
+        // 初始化虚拟化器 Switch
+        switchVirtualizer.setOnCheckedChangeListener { _, isChecked ->
+            mediaPlayerManager.enableVirtualizer(isChecked)
+            Log.d(TAG, "虚拟化器已${if (isChecked) "启用" else "禁用"}。")
+        }
+
+        // 初始化低音增强 Switch
+        switchBassBoost.setOnCheckedChangeListener { _, isChecked ->
+            mediaPlayerManager.enableBassBoost(isChecked)
+            Log.d(TAG, "低音增强已${if (isChecked) "启用" else "禁用"}。")
+        }
+    }
+
+    /**
+     * 初始化 Visualizer 选择监听器
+     */
+    private fun initVisualizerSelection() {
+        radioGroupVisualizer.setOnCheckedChangeListener { group, checkedId ->
+            when (checkedId) {
+                R.id.rbWaveform -> {
+                    visualizerManager.setVisualizerType(VisualizerType.WAVEFORM)
+                    visualizerView.setVisualizerType(VisualizerType.WAVEFORM)
+                    Log.d(TAG, "Visualizer 类型切换为: WAVEFORM")
+                }
+                R.id.rbBarGraph -> {
+                    visualizerManager.setVisualizerType(VisualizerType.BAR_GRAPH)
+                    visualizerView.setVisualizerType(VisualizerType.BAR_GRAPH)
+                    Log.d(TAG, "Visualizer 类型切换为: BAR_GRAPH")
+                }
+                R.id.rbLineGraph -> {
+                    visualizerManager.setVisualizerType(VisualizerType.LINE_GRAPH)
+                    visualizerView.setVisualizerType(VisualizerType.LINE_GRAPH)
+                    Log.d(TAG, "Visualizer 类型切换为: LINE_GRAPH")
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取均衡器预设列表
+     * @return 预设名称列表
+     */
+    private fun getEqualizerPresets(): List<String> {
+        // 根据实际需求定义均衡器预设名称
+        return listOf(
+            "Flat",
+            "Bass Boost",
+            "Rock",
+            "Pop",
+            "Jazz",
+            "Classical",
+            "Dance",
+            "Hip Hop"
+        )
     }
 
     /**
@@ -268,6 +388,12 @@ class MainActivity : AppCompatActivity(),
                 try {
                     isVideo = isVideoFile(currentFileUri!!)
                     mediaPlayerManager.initMediaPlayer(currentFileUri!!, isVideo)
+                    if (!isVideo) {
+                        musicInfoDisplay?.displayMusicInfo(currentFileUri!!)
+                        musicInfoDisplay?.toggleMusicInfo(true)
+                    } else {
+                        musicInfoDisplay?.toggleMusicInfo(false)
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error initializing MediaPlayer: ${e.message}", e)
                     Toast.makeText(this, "无法播放所选文件", Toast.LENGTH_SHORT).show()
@@ -319,8 +445,15 @@ class MainActivity : AppCompatActivity(),
             musicInfoDisplay?.toggleMusicInfo(true)
         }
 
-        // 初始化 Visualizer
-        visualizerManager.initVisualizer(mediaPlayerManager.getAudioSessionId())
+        // 初始化 VisualizerManager，传递音频会话 ID 和监听器
+        visualizerManager = VisualizerManager(mediaPlayerManager.getAudioSessionId(), this)
+        visualizerManager.init()
+
+        // 初始化音效管理器
+        mediaPlayerManager.initSoundEffects()
+
+        // 设置默认可视化类型
+        visualizerManager.setVisualizerType(VisualizerType.WAVEFORM)
 
         // 开始更新进度条
         updateSeekBar()
@@ -339,6 +472,7 @@ class MainActivity : AppCompatActivity(),
      * 当波形数据更新时回调
      */
     override fun onWaveformUpdate(waveform: ByteArray?) {
+        Log.d(TAG, "onWaveformUpdate: 接收到波形数据，长度=${waveform?.size ?: 0}")
         visualizerView.updateWaveform(waveform)
     }
 
@@ -346,6 +480,7 @@ class MainActivity : AppCompatActivity(),
      * 当 FFT 数据更新时回调
      */
     override fun onFftUpdate(fft: ByteArray?) {
+        Log.d(TAG, "onFftUpdate: 接收到 FFT 数据，长度=${fft?.size ?: 0}")
         visualizerView.updateFft(fft)
     }
 
