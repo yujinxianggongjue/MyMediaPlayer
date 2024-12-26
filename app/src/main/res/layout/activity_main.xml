@@ -1,16 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="#F5F5F5"
     android:padding="16dp">
 
-    <!-- 视频/专辑封面 -->
+    <!-- Video/Album Cover Container -->
     <FrameLayout
         android:id="@+id/videoContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_weight="2"
         android:background="#000"
         android:visibility="visible">
 
@@ -21,16 +23,17 @@
 
         <ImageView
             android:id="@+id/ivAlbumCover"
-            android:layout_width="500dp"
-            android:layout_height="500dp"
+            android:layout_width="300dp"
+            android:layout_height="300dp"
             android:layout_gravity="center"
             android:scaleType="centerCrop"
             android:src="@drawable/default_album_cover"
             android:visibility="gone" />
     </FrameLayout>
 
-    <!-- 音乐信息 -->
+    <!-- Music Information -->
     <LinearLayout
+        android:id="@+id/musicInfoLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
@@ -53,7 +56,15 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- 播放进度条 -->
+    <!-- Visualizer View -->
+    <com.example.mymediaplayer.VisualizerView
+        android:id="@+id/visualizerView"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginTop="8dp"
+        android:background="#EFEFEF" />
+
+    <!-- Playback SeekBar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -84,14 +95,15 @@
             android:paddingStart="8dp" />
     </LinearLayout>
 
-    <!-- 按钮操作区域 -->
+    <!-- Control Buttons -->
     <LinearLayout
+        android:id="@+id/buttonLayout"
         android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:layout_marginTop="8dp"
-        android:weightSum="5">
+        android:weightSum="6">
 
         <Button
             android:id="@+id/btnPlay"
@@ -99,7 +111,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Play"
-            android:layout_margin="8dp" />
+            android:layout_margin="4dp" />
 
         <Button
             android:id="@+id/btnPause"
@@ -107,7 +119,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Pause"
-            android:layout_margin="8dp" />
+            android:layout_margin="4dp" />
 
         <Button
             android:id="@+id/btnReplay"
@@ -115,7 +127,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Replay"
-            android:layout_margin="8dp" />
+            android:layout_margin="4dp" />
 
         <Button
             android:id="@+id/btnOpenFile"
@@ -123,7 +135,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Open File"
-            android:layout_margin="8dp" />
+            android:layout_margin="4dp" />
 
         <Button
             android:id="@+id/btnSpeed"
@@ -131,6 +143,14 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Speed"
-            android:layout_margin="8dp" />
+            android:layout_margin="4dp" />
+
+        <Button
+            android:id="@+id/btnEffects"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Effects"
+            android:layout_margin="4dp" />
     </LinearLayout>
 </LinearLayout>
