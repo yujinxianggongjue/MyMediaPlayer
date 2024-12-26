@@ -9,22 +9,20 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
-import kotlin.math.hypot
 
 /**
- * Custom View to display audio visualizations.
- * Supports waveform, bar, and line visualizations.
+ * VisualizerView 是自定义视图，用于显示音频可视化效果。
+ * 支持波形、柱状图和折线图三种可视化类型。
  */
 class VisualizerView : View {
-    private var mWaveformBytes: ByteArray? = null
-    private var mFftBytes: ByteArray? = null
-    private var mPoints: FloatArray? = null
-    private var mBarHeights: FloatArray? = null
-    private val mRect = Rect()
+    private var mWaveformBytes: ByteArray? = null // 存储波形数据
+    private var mFftBytes: ByteArray? = null // 存储 FFT 数据
+    private var mPoints: FloatArray? = null // 存储绘制线条的点
+    private val mRect = Rect() // 用于绘制区域
 
-    private val mForePaint = Paint()
+    private val mForePaint = Paint() // 绘图画笔
 
-    private var type = 0 // 0: Waveform, 1: Bar, 2: Line
+    private var type = 0 // 当前可视化类型：0 - 波形，1 - 柱状图，2 - 折线图
 
     constructor(context: Context?) : super(context) {
         init()
@@ -34,17 +32,21 @@ class VisualizerView : View {
         init()
     }
 
+    /**
+     * 初始化绘图相关的属性
+     */
     private fun init() {
         mWaveformBytes = null
         mFftBytes = null
 
-        mForePaint.strokeWidth = 2f
-        mForePaint.isAntiAlias = true
-        mForePaint.color = Color.rgb(0, 128, 255)
+        mForePaint.strokeWidth = 2f // 线宽
+        mForePaint.isAntiAlias = true // 抗锯齿
+        mForePaint.color = Color.rgb(0, 128, 255) // 画笔颜色
     }
 
     /**
-     * Update waveform data and redraw the view.
+     * 更新波形数据并重绘视图
+     * @param bytes 波形数据
      */
     fun updateWaveform(bytes: ByteArray?) {
         mWaveformBytes = bytes
@@ -52,7 +54,8 @@ class VisualizerView : View {
     }
 
     /**
-     * Update FFT data and redraw the view.
+     * 更新 FFT 数据并重绘视图
+     * @param bytes FFT 数据
      */
     fun updateFft(bytes: ByteArray?) {
         mFftBytes = bytes
@@ -60,7 +63,7 @@ class VisualizerView : View {
     }
 
     /**
-     * Toggle visualization type between Waveform, Bar, and Line.
+     * 切换可视化类型：波形 -> 柱状图 -> 折线图 -> 波形 ...
      */
     fun toggleVisualizationType() {
         type = (type + 1) % 3
@@ -68,7 +71,7 @@ class VisualizerView : View {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Toggle visualization type on touch
+        // 触摸事件，点击时切换可视化类型
         if (event.action == MotionEvent.ACTION_DOWN) {
             toggleVisualizationType()
             return true
@@ -82,15 +85,18 @@ class VisualizerView : View {
         mRect.set(0, 0, width, height)
 
         when (type) {
-            0 -> drawWaveform(canvas)
-            1 -> drawBarVisualizer(canvas)
-            2 -> drawLineVisualizer(canvas)
-            else -> drawWaveform(canvas)
+            0 -> drawWaveform(canvas) // 绘制波形
+            1 -> drawBarVisualizer(canvas) // 绘制柱状图
+            2 -> drawLineVisualizer(canvas) // 绘制折线图
+            else -> drawWaveform(canvas) // 默认绘制波形
         }
     }
 
+    /**
+     * 绘制波形可视化
+     * @param canvas 画布
+     */
     private fun drawWaveform(canvas: Canvas) {
-        // 绘制波形可视化
         mWaveformBytes?.let { bytes ->
             mRect.set(0, 0, width, height)
 
@@ -115,30 +121,36 @@ class VisualizerView : View {
         }
     }
 
+    /**
+     * 绘制柱状图可视化，使用 FFT 数据
+     * @param canvas 画布
+     */
     private fun drawBarVisualizer(canvas: Canvas) {
-        // Draw bar visualization using FFT data
-        if (mFftBytes == null) return
+        mFftBytes?.let { bytes ->
+            val numBars = 50 // 柱状图的柱数
+            val barWidth = mRect.width() / numBars.toFloat()
+            val maxHeight = mRect.height().toFloat()
 
-        val numBars = 50 // Number of bars to display
-        val barWidth = mRect.width() / numBars.toFloat()
-        val maxHeight = mRect.height().toFloat()
-
-        for (i in 0 until numBars) {
-            val fftIndex = (i * (mFftBytes!!.size / 2)) / numBars
-            val magnitude = abs(mFftBytes!![fftIndex].toFloat())
-            val barHeight = (magnitude / 128f) * maxHeight
-            canvas.drawRect(
-                i * barWidth,
-                mRect.height() - barHeight,
-                (i + 1) * barWidth - 2,
-                mRect.height().toFloat(),
-                mForePaint
-            )
+            for (i in 0 until numBars) {
+                val fftIndex = (i * (bytes.size / 2)) / numBars
+                val magnitude = abs(bytes[fftIndex].toFloat())
+                val barHeight = (magnitude / 128f) * maxHeight
+                canvas.drawRect(
+                    i * barWidth,
+                    mRect.height() - barHeight,
+                    (i + 1) * barWidth - 2,
+                    mRect.height().toFloat(),
+                    mForePaint
+                )
+            }
         }
     }
 
+    /**
+     * 绘制折线图可视化，使用 FFT 数据
+     * @param canvas 画布
+     */
     private fun drawLineVisualizer(canvas: Canvas) {
-        // 绘制使用 FFT 数据的线条可视化
         mFftBytes?.let { bytes ->
             mRect.set(0, 0, width, height)
 
