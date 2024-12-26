@@ -69,6 +69,8 @@ class MainActivity : AppCompatActivity(),
     private lateinit var mediaPlayerManager: MediaPlayerManager
     private lateinit var visualizerManager: VisualizerManager
     private lateinit var permissionManager: PermissionManager
+    private lateinit var videoContainer: AspectRatioFrameLayout
+
 
     // 定义请求码
     companion object {
@@ -107,6 +109,8 @@ class MainActivity : AppCompatActivity(),
         rbWaveform = findViewById(R.id.rbWaveform)
         rbBarGraph = findViewById(R.id.rbBarGraph)
         rbLineGraph = findViewById(R.id.rbLineGraph)
+
+        videoContainer = findViewById(R.id.videoContainer)
 
         // 初始化 MusicInfoDisplay
         musicInfoDisplay = MusicInfoDisplay(this, tvArtist, tvAlbumName, ivAlbumCover)

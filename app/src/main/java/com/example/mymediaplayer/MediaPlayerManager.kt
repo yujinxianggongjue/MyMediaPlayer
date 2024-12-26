@@ -49,6 +49,7 @@ class MediaPlayerManager(
                     listener.onCompletion()
                 }
                 prepareAsync() // 异步准备
+
             } catch (e: Exception) {
                 Log.e(TAG, "Error initializing MediaPlayer: ${e.message}", e)
                 release()
