@@ -1,7 +1,9 @@
 package com.example.mymediaplayer
 
 import android.content.ContentResolver
+import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -52,6 +54,9 @@ class MainActivity : AppCompatActivity(),
     private lateinit var rbWaveform: RadioButton
     private lateinit var rbBarGraph: RadioButton
     private lateinit var rbLineGraph: RadioButton
+
+    // 新增的音量 SeekBar
+    private lateinit var volumeSeekBar: SeekBar
 
     private var musicInfoDisplay: MusicInfoDisplay? = null
 
@@ -110,7 +115,13 @@ class MainActivity : AppCompatActivity(),
         rbBarGraph = findViewById(R.id.rbBarGraph)
         rbLineGraph = findViewById(R.id.rbLineGraph)
 
+
         videoContainer = findViewById(R.id.videoContainer)
+
+        // 初始化音量 SeekBar
+        volumeSeekBar = findViewById(R.id.volumeSeekBar)
+        initializeVolumeSeekBar()
+
 
         // 初始化 MusicInfoDisplay
         musicInfoDisplay = MusicInfoDisplay(this, tvArtist, tvAlbumName, ivAlbumCover)
@@ -180,6 +191,58 @@ class MainActivity : AppCompatActivity(),
 
         // 初始化 Visualizer 选择监听器
         initVisualizerSelection()
+    }
+
+    /**
+     * 初始化音量 SeekBar
+     */
+    private fun initializeVolumeSeekBar() {
+        // 获取当前音量（0-100）
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val volumePercent = if (maxVolume == 0) 0 else (currentVolume * 100) / maxVolume
+
+        // 设置 SeekBar 的最大值和当前进度
+        volumeSeekBar.max = 100
+        volumeSeekBar.progress = volumePercent
+
+        // 设置 SeekBar 的监听器
+        volumeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    setAppVolume(progress)
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                // 用户开始拖动 SeekBar
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                // 用户停止拖动 SeekBar
+            }
+        })
+    }
+
+    /**
+     * 设置应用的音量
+     * @param volumePercent 音量百分比（0-100）
+     */
+    private fun setAppVolume(volumePercent: Int) {
+        // 将百分比转换为 0.0f 到 1.0f 的范围
+        val volume = volumePercent / 100f
+
+        // 使用 MediaPlayerManager 设置音量
+        mediaPlayerManager.setVolume(volume)
+
+        // 更新系统音量（可选）
+        /*
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val newVolume = (volumePercent * maxVolume) / 100
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+        */
     }
 
     /**
@@ -476,7 +539,7 @@ class MainActivity : AppCompatActivity(),
      * 当波形数据更新时回调
      */
     override fun onWaveformUpdate(waveform: ByteArray?) {
-        Log.d(TAG, "onWaveformUpdate: 接收到波形数据，长度=${waveform?.size ?: 0}")
+        //Log.d(TAG, "onWaveformUpdate: 接收到波形数据，长度=${waveform?.size ?: 0}")
         visualizerView.updateWaveform(waveform)
     }
 
@@ -484,7 +547,7 @@ class MainActivity : AppCompatActivity(),
      * 当 FFT 数据更新时回调
      */
     override fun onFftUpdate(fft: ByteArray?) {
-        Log.d(TAG, "onFftUpdate: 接收到 FFT 数据，长度=${fft?.size ?: 0}")
+        //Log.d(TAG, "onFftUpdate: 接收到 FFT 数据，长度=${fft?.size ?: 0}")
         visualizerView.updateFft(fft)
     }
 

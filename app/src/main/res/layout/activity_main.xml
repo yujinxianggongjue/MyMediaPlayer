@@ -38,6 +38,17 @@
                 android:visibility="gone" />
         </com.example.mymediaplayer.AspectRatioFrameLayout>
 
+
+            <!-- 垂直音量调节 SeekBar -->
+            <SeekBar
+                android:id="@+id/volumeSeekBar"
+                android:layout_width="300dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|center_vertical"
+                android:rotation="-90"
+                android:max="100"
+                android:progress="30" />
+
         <!-- Music Information -->
         <LinearLayout
             android:id="@+id/musicInfoLayout"
@@ -67,7 +78,7 @@
         <com.example.mymediaplayer.VisualizerView
             android:id="@+id/visualizerView"
             android:layout_width="match_parent"
-            android:layout_height="150dp"
+            android:layout_height="70dp"
             android:layout_marginTop="8dp"
             android:background="#EFEFEF" />
 
@@ -84,7 +95,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="00:00"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:paddingEnd="8dp" />
 
             <SeekBar
@@ -98,7 +109,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="00:00"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:paddingStart="8dp" />
         </LinearLayout>
 
@@ -116,25 +127,28 @@
                 android:id="@+id/btnPlay"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_margin="4dp"
                 android:layout_weight="1"
                 android:text="Play"
-                android:layout_margin="4dp" />
+                android:textSize="8sp" />
 
             <Button
                 android:id="@+id/btnPause"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_margin="4dp"
                 android:layout_weight="1"
                 android:text="Pause"
-                android:layout_margin="4dp" />
+                android:textSize="8sp" />
 
             <Button
                 android:id="@+id/btnReplay"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_margin="4dp"
                 android:layout_weight="1"
                 android:text="Replay"
-                android:layout_margin="4dp" />
+                android:textSize="8sp" />
 
             <Button
                 android:id="@+id/btnOpenFile"
@@ -142,6 +156,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Open File"
+                android:textSize="8sp"
                 android:layout_margin="4dp" />
 
             <Button
@@ -150,6 +165,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Speed"
+                android:textSize="8sp"
                 android:layout_margin="4dp" />
 
             <Button
@@ -158,6 +174,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Effects"
+                android:textSize="8sp"
                 android:layout_margin="4dp" />
         </LinearLayout>
 
@@ -246,7 +263,7 @@
                     android:layout_height="wrap_content" />
             </LinearLayout>
 
-            <!-- 新增：Visualizer 功能选择 -->
+            <!-- Visualizer Options -->
             <TextView
                 android:id="@+id/tvVisualizerOptions"
                 android:layout_width="wrap_content"
@@ -270,7 +287,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Waveform"
-                    android:checked="true"
+
                     android:layout_marginEnd="16dp"/>
 
                 <RadioButton
@@ -284,7 +301,8 @@
                     android:id="@+id/rbLineGraph"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Line Graph"/>
+                    android:text="Line Graph"
+                    android:checked="true"/>
             </RadioGroup>
 
         </LinearLayout>

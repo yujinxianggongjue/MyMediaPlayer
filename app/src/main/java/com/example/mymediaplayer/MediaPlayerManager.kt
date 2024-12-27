@@ -201,6 +201,14 @@ class MediaPlayerManager(
     }
 
     /**
+     * 设置音量
+     * @param volume 音量值（0.0f - 1.0f）
+     */
+    fun setVolume(volume: Float) {
+        mediaPlayer?.setVolume(volume, volume)
+    }
+
+    /**
      * 释放 MediaPlayer 和音效资源。
      */
     fun release() {

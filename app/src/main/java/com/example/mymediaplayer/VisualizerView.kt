@@ -17,7 +17,7 @@ import kotlin.math.sqrt
  * 支持波形、柱状图和折线图三种可视化类型。
  */
 class VisualizerView : View {
-    private var currentType: VisualizerType = VisualizerType.WAVEFORM
+    private var currentType: VisualizerType = VisualizerType.LINE_GRAPH//默认是线性ß
 
     private var mWaveformBytes: ByteArray? = null // 存储波形数据
     private var mFftBytes: ByteArray? = null // 存储 FFT 数据
@@ -144,7 +144,7 @@ class VisualizerView : View {
                     // 归一化幅度值，根据需要调整缩放因子
                     val normalizedMagnitude = (magnitude / 256f) * maxHeight
 
-                    Log.d(TAG, "Bar $i: magnitude=$magnitude, normalizedHeight=$normalizedMagnitude")
+                    //Log.d(TAG, "Bar $i: magnitude=$magnitude, normalizedHeight=$normalizedMagnitude")
 
                     canvas.drawRect(
                         i * barWidth,
@@ -184,7 +184,7 @@ class VisualizerView : View {
                 mPoints!![i * 4 + 2] = x2
                 mPoints!![i * 4 + 3] = y2
 
-                Log.d(TAG, "Point $i: ($x1, $y1) to ($x2, $y2)")
+                //Log.d(TAG, "Point $i: ($x1, $y1) to ($x2, $y2)")
             }
 
             canvas.drawLines(mPoints!!, mForePaint)
