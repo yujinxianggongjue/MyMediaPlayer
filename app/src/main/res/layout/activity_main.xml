@@ -119,7 +119,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:layout_marginTop="8dp"
-            android:weightSum="6">
+            android:weightSum="7">
 
             <Button
                 android:id="@+id/btnPlay"
@@ -172,6 +172,15 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Effects"
+                android:textSize="8sp"
+                android:layout_margin="4dp" />
+
+            <Button
+                android:id="@+id/btnRecord"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Record"
                 android:textSize="8sp"
                 android:layout_margin="4dp" />
         </LinearLayout>

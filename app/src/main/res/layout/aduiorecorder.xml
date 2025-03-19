@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Audio Settings -->
+    <TextView
+        android:id="@+id/settingsLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="录音设置"
+        android:textStyle="bold"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp"/>
+
+    <!-- Channel Selection -->
+    <TextView
+        android:id="@+id/channelLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="声道："
+        android:layout_below="@id/settingsLabel"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="20dp"/>
+
+    <Spinner
+        android:id="@+id/channelSpinner"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/settingsLabel"
+        android:layout_toEndOf="@id/channelLabel"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="10dp"/>
+
+    <!-- Sample Rate Selection -->
+    <TextView
+        android:id="@+id/sampleRateLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="采样率："
+        android:layout_below="@id/channelSpinner"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="20dp"/>
+
+    <Spinner
+        android:id="@+id/sampleRateSpinner"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/channelSpinner"
+        android:layout_toEndOf="@id/sampleRateLabel"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="10dp"/>
+
+    <!-- Bit Rate Selection -->
+    <TextView
+        android:id="@+id/bitRateLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="比特率："
+        android:layout_below="@id/sampleRateSpinner"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="20dp"/>
+
+    <Spinner
+        android:id="@+id/bitRateSpinner"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/sampleRateSpinner"
+        android:layout_toEndOf="@id/bitRateLabel"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="10dp"/>
+
+    <!-- Start Recording Button -->
+    <Button
+        android:id="@+id/startButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Start Recording"
+        android:layout_below="@id/bitRateSpinner"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="30dp"/>
+
+    <!-- Stop Recording Button -->
+    <Button
+        android:id="@+id/stopButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Stop Recording"
+        android:layout_below="@id/startButton"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"/>
+
+    <!-- 录音时长显示 -->
+    <TextView
+        android:id="@+id/recordTimeTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="00:00"
+        android:layout_below="@id/stopButton"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp" />
+
+    <!-- Play Recording Button -->
+    <Button
+        android:id="@+id/playButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Play Recording"
+        android:layout_below="@id/recordTimeTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"/>
+
+    <!-- Stop Playing Button -->
+    <Button
+        android:id="@+id/stopPlayButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Stop Playing"
+        android:layout_below="@id/playButton"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"/>
+
+    <!-- 路径 / URI 显示 -->
+    <TextView
+        android:id="@+id/recordPathTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Recorded URI: "
+        android:layout_below="@id/stopPlayButton"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"/>
+
+    <!-- 播放进度条 -->
+    <SeekBar
+        android:id="@+id/playSeekBar"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/recordPathTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp" />
+
+    <!-- 播放时间显示 -->
+    <TextView
+        android:id="@+id/timeTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="00:00 / 00:00"
+        android:layout_below="@id/playSeekBar"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp" />
+
+</RelativeLayout>

@@ -13,9 +13,11 @@ import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import java.lang.Exception
+import com.example.mymediaplayer.AudioRecoder.AudioRecorder
 
 
 /**
@@ -37,12 +39,18 @@ class MainActivity : AppCompatActivity(),
     private lateinit var btnOpenFile: Button
     private lateinit var btnSpeed: Button
     private lateinit var btnEffects: Button
+    private lateinit var btnRecord: Button
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
     private lateinit var visualizerView: VisualizerView
     private lateinit var tvArtist: TextView
     private lateinit var tvAlbumName: TextView
     private lateinit var ivAlbumCover: ImageView
+
+    // 录音相关
+    private lateinit var audioRecorder: AudioRecorder
+    private var isRecorderViewVisible = false
+    private var recordingViewContainer: ViewGroup? = null
 
     // 音效控件
     private lateinit var spinnerEqualizer: Spinner
@@ -74,6 +82,13 @@ class MainActivity : AppCompatActivity(),
     private lateinit var mediaPlayerManager: MediaPlayerManager
     private lateinit var visualizerManager: VisualizerManager
     private lateinit var permissionManager: PermissionManager
+
+    // 新增的 videoContainer 和 musicInfoLayout
+    private lateinit var videoContainer: FrameLayout
+    private lateinit var musicInfoLayout: LinearLayout
+
+    // 新增的 mainLayout
+    private lateinit var mainLayout: LinearLayout
 
     // 定义请求码
     companion object {
@@ -158,6 +173,11 @@ class MainActivity : AppCompatActivity(),
         btnOpenFile.setOnClickListener { openFile() }
         btnSpeed.setOnClickListener { changePlaybackSpeed() }
         btnEffects.setOnClickListener { toggleSoundEffects() }
+        btnRecord = findViewById(R.id.btnRecord)
+        btnRecord.setOnClickListener { toggleRecordingView() }
+
+        // 初始化录音管理器
+        audioRecorder = AudioRecorder(this)
 
         // 默认显示当前播放速度
         updateSpeedButtonText()
@@ -185,6 +205,13 @@ class MainActivity : AppCompatActivity(),
 
         // 初始化 Visualizer 选择监听器
         initVisualizerSelection()
+
+        // 初始化新增的 videoContainer 和 musicInfoLayout
+        videoContainer = findViewById(R.id.videoContainer)
+        musicInfoLayout = findViewById(R.id.musicInfoLayout)
+
+        // 初始化 mainLayout
+        mainLayout = findViewById(R.id.mainLayout)
     }
 
     /**
@@ -333,6 +360,120 @@ class MainActivity : AppCompatActivity(),
         } else {
             soundEffectsLayout.visibility = View.GONE
             btnEffects.text = "Effects"
+        }
+    }
+
+    private fun toggleRecordingView() {
+        if (!isRecorderViewVisible) {
+            // 隐藏播放界面的控件
+            videoContainer.visibility = View.GONE
+            musicInfoLayout.visibility = View.GONE
+            visualizerView.visibility = View.GONE
+            seekBar.visibility = View.GONE
+            tvCurrentTime.visibility = View.GONE
+            tvTotalTime.visibility = View.GONE
+
+            // 动态加载录音界面
+            if (recordingViewContainer == null) {
+                val inflater = layoutInflater
+                recordingViewContainer = inflater.inflate(R.layout.aduiorecorder, mainLayout, false) as ViewGroup
+                mainLayout.addView(recordingViewContainer)
+
+                // 初始化录音界面的控件
+                initRecordingViews(recordingViewContainer!!)
+            }
+            recordingViewContainer?.visibility = View.VISIBLE
+            btnRecord.text = "Back"
+            isRecorderViewVisible = true
+        } else {
+            // 显示播放界面的控件
+            videoContainer.visibility = View.VISIBLE
+            musicInfoLayout.visibility = View.VISIBLE
+            visualizerView.visibility = View.VISIBLE
+            seekBar.visibility = View.VISIBLE
+            tvCurrentTime.visibility = View.VISIBLE
+            tvTotalTime.visibility = View.VISIBLE
+
+            // 隐藏录音界面
+            recordingViewContainer?.visibility = View.GONE
+            btnRecord.text = "Record"
+            isRecorderViewVisible = false
+
+            // 如果正在录音，停止录音
+            if (audioRecorder.isRecording()) {
+                audioRecorder.stopRecording()
+            }
+        }
+    }
+
+    private fun initRecordingViews(container: ViewGroup) {
+        // 设置录音时间显示
+        val recordTimeTextView = container.findViewById<TextView>(R.id.recordTimeTextView)
+        audioRecorder.setRecordTimeTextView(recordTimeTextView)
+
+        // 设置录音路径显示
+        val recordPathTextView = container.findViewById<TextView>(R.id.recordPathTextView)
+        audioRecorder.setRecordPathTextView(recordPathTextView)
+
+        // 设置通道选择
+        val channelSpinner = container.findViewById<Spinner>(R.id.channelSpinner)
+        val channelAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, arrayOf("单声道", "立体声", "8声道", "12声道", "16声道"))
+        channelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        channelSpinner.adapter = channelAdapter
+        channelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                audioRecorder.setChannel(position)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        // 设置采样率选择
+        val sampleRateSpinner = container.findViewById<Spinner>(R.id.sampleRateSpinner)
+        val sampleRateAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, arrayOf("8000Hz", "16000Hz", "22050Hz", "44100Hz", "48000Hz"))
+        sampleRateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        sampleRateSpinner.adapter = sampleRateAdapter
+        sampleRateSpinner.setSelection(3) // 默认44100Hz
+        sampleRateSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                audioRecorder.setSampleRate(position)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        // 设置比特率选择
+        val bitRateSpinner = container.findViewById<Spinner>(R.id.bitRateSpinner)
+        val bitRateAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, arrayOf("32kbps", "64kbps", "128kbps", "192kbps", "256kbps"))
+        bitRateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        bitRateSpinner.adapter = bitRateAdapter
+        bitRateSpinner.setSelection(2) // 默认128kbps
+        bitRateSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                audioRecorder.setBitRate(position)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        // 设置开始录音按钮
+        val startButton = container.findViewById<Button>(R.id.startButton)
+        startButton.setOnClickListener {
+            audioRecorder.startRecording()
+        }
+
+        // 设置停止录音按钮
+        val stopButton = container.findViewById<Button>(R.id.stopButton)
+        stopButton.setOnClickListener {
+            audioRecorder.stopRecording()
+        }
+
+        // 设置播放录音按钮
+        val playButton = container.findViewById<Button>(R.id.playButton)
+        playButton.setOnClickListener {
+            audioRecorder.getRecordedUri()?.let { uri ->
+                currentFileUri = uri
+                isVideo = false
+                mediaPlayerManager.initMediaPlayer(uri, false)
+                toggleRecordingView() // 切换回播放界面
+            }
         }
     }
 
