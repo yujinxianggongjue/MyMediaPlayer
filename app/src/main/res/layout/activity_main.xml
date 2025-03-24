@@ -13,6 +13,12 @@
         android:background="#F5F5F5"
         android:padding="16dp">
 
+        <!-- Fragment Container -->
+        <FrameLayout
+            android:id="@+id/fragment_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
         <!-- Video/Album Cover Container -->
         <FrameLayout
             android:id="@+id/videoContainer"
@@ -313,6 +319,14 @@
             </RadioGroup>
 
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btnAudioFocus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Audio Focus Test"
+            android:layout_marginTop="16dp"
+            android:layout_gravity="center_horizontal" />
 
     </LinearLayout>
 </ScrollView>

@@ -20,6 +20,7 @@ import java.lang.Exception
 import com.example.mymediaplayer.AudioRecoder.AudioRecorder
 
 
+
 /**
  * MainActivity 是应用的主活动，负责初始化和协调其他组件。
  * 它实现了 MediaPlayerListener、VisualizerListener 和 PermissionCallback 接口，
@@ -212,6 +213,12 @@ class MainActivity : AppCompatActivity(),
 
         // 初始化 mainLayout
         mainLayout = findViewById(R.id.mainLayout)
+
+        val btnAudioFocus: Button = findViewById(R.id.btnAudioFocus)
+        btnAudioFocus.setOnClickListener {
+            val intent = Intent(this, AudioFocusTestActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     /**
@@ -393,6 +400,9 @@ class MainActivity : AppCompatActivity(),
             seekBar.visibility = View.VISIBLE
             tvCurrentTime.visibility = View.VISIBLE
             tvTotalTime.visibility = View.VISIBLE
+
+            // 重置 currentFileUri 为默认音频文件
+            currentFileUri = Uri.parse("android.resource://${packageName}/${R.raw.sample_audio}")
 
             // 隐藏录音界面
             recordingViewContainer?.visibility = View.GONE

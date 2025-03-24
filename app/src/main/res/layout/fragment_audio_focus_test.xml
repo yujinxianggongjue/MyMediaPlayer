@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/statusTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:gravity="center"
+        android:text="音频焦点状态"
+        android:textSize="18sp" />
+
+    <Button
+        android:id="@+id/requestFocusButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="请求音频焦点" />
+
+    <Button
+        android:id="@+id/abandonFocusButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="放弃音频焦点" />
+
+</LinearLayout>
