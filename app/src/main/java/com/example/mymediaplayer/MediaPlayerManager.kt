@@ -223,6 +223,25 @@ class MediaPlayerManager(
         }
     }
 
+    /**
+     * 设置是否循环播放。
+     * @param looping 是否循环播放。
+     */
+    fun setLooping(looping: Boolean) {
+        mediaPlayer?.isLooping = looping
+    }
+
+    /**
+     * 停止播放。
+     */
+    fun stop() {
+        mediaPlayer?.let {
+            if (it.isPlaying) {
+                it.stop()
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "MediaPlayerManager"
     }

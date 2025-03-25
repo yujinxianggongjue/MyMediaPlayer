@@ -146,12 +146,12 @@
                 android:textSize="8sp" />
 
             <Button
-                android:id="@+id/btnReplay"
+                android:id="@+id/btnStopplay"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_margin="4dp"
                 android:layout_weight="1"
-                android:text="Replay"
+                android:text="Stop"
                 android:textSize="8sp" />
 
             <Button
@@ -327,6 +327,32 @@
             android:text="Audio Focus Test"
             android:layout_marginTop="16dp"
             android:layout_gravity="center_horizontal" />
+
+        <Button
+            android:id="@+id/btnAudioCapture"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Audio Playback Capture"
+            android:layout_marginTop="16dp"
+            android:layout_gravity="center_horizontal" />
+
+        <TextView
+            android:id="@+id/tvCapturePath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Capture Path:"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp"
+            android:gravity="center_horizontal" />
+
+        <TextView
+            android:id="@+id/tvRecordingStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Recording Status:"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp"
+            android:gravity="center_horizontal" />
 
     </LinearLayout>
 </ScrollView>

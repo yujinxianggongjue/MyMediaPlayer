@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:sharedUserId="android.uid.system">
+    <!-- 如果你的 App 不是系统应用，请删除这行，否则签名会冲突 -->
+    <!-- android:sharedUserId="android.uid.system" -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT" />
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -27,6 +31,9 @@
         </activity>
         <activity
             android:name=".AudioFocusTestActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AudioRecoderTest"
             android:exported="false" />
     </application>
 
