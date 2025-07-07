@@ -63,60 +63,84 @@ class AudioPlaybackCapture {
             Log.w(TAG, "Already recording!")
             return
         }
-        // 记录输出文件
-        mCurrentOutputFile = outputFile
+        
+        try {
+            // 记录输出文件
+            mCurrentOutputFile = outputFile
+            Log.d(TAG, "Starting audio capture to: ${outputFile.absolutePath}")
 
-        // 1) 构建 AudioPlaybackCaptureConfiguration
-        val playbackConfig = AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-            .addMatchingUsage(AudioAttributes.USAGE_MEDIA)     // 音乐、视频等
-            .addMatchingUsage(AudioAttributes.USAGE_GAME)
-            .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
-            // 如果想捕获其他 usage，可继续添加
-            .build()
+            // 1) 构建 AudioPlaybackCaptureConfiguration
+            val playbackConfig = AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)     // 音乐、视频等
+                .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                // 如果想捕获其他 usage，可继续添加
+                .build()
+            Log.d(TAG, "AudioPlaybackCaptureConfiguration created successfully")
 
-        // 2) 获取最小缓冲区
-        val bufferSize = AudioRecord.getMinBufferSize(
-            SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT
-        )
-        if (bufferSize == AudioRecord.ERROR || bufferSize == AudioRecord.ERROR_BAD_VALUE) {
-            Log.e(TAG, "Invalid buffer size: $bufferSize")
-            return
-        }
-
-        // 3) 构建 AudioRecord，用于捕获系统播放音频
-        mAudioRecord = AudioRecord.Builder()
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AUDIO_FORMAT)
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(CHANNEL_CONFIG)
-                    .build()
+            // 2) 获取最小缓冲区
+            val bufferSize = AudioRecord.getMinBufferSize(
+                SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT
             )
-            .setBufferSizeInBytes(bufferSize)
-            .setAudioPlaybackCaptureConfig(playbackConfig)   // 关键：指定 PlaybackCaptureConfig
-            .build()
+            if (bufferSize == AudioRecord.ERROR || bufferSize == AudioRecord.ERROR_BAD_VALUE) {
+                Log.e(TAG, "Invalid buffer size: $bufferSize")
+                throw RuntimeException("Invalid buffer size: $bufferSize")
+            }
+            Log.d(TAG, "Buffer size: $bufferSize")
 
-        if (mAudioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-            Log.e(TAG, "AudioRecord init failed!")
-            return
-        }
+            // 3) 构建 AudioRecord，用于捕获系统播放音频
+            Log.d(TAG, "Creating AudioRecord with playback capture config...")
+            mAudioRecord = AudioRecord.Builder()
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AUDIO_FORMAT)
+                        .setSampleRate(SAMPLE_RATE)
+                        .setChannelMask(CHANNEL_CONFIG)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufferSize)
+                .setPrivacySensitive(false)  // 设置为非隐私敏感
+                .setAudioPlaybackCaptureConfig(playbackConfig)   // 关键：指定 PlaybackCaptureConfig
+                .build()
+            Log.d(TAG, "AudioRecord created successfully")
 
-        // 4) 开始录音
-        mAudioRecord?.startRecording()
-        isRecording = true
-        Log.d(TAG, "startCapture: writing to ${outputFile.absolutePath}")
+            if (mAudioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord init failed! State: ${mAudioRecord?.state}")
+                throw RuntimeException("AudioRecord initialization failed")
+            }
 
-        // 5) 启动线程循环写文件
-        mRecordingThread = Thread {
-            writeAudioDataToFile(outputFile, bufferSize)
-        }.apply {
-            start()
-        }
+            // 4) 开始录音
+            mAudioRecord?.startRecording()
+            isRecording = true
+            Log.d(TAG, "startCapture: writing to ${outputFile.absolutePath}")
 
-        // 更新 UI
-        recordingStatusTextView?.post {
-            recordingStatusTextView?.text = "Recording..."
-            recordingPathTextView?.text = "Recording to: ${outputFile.absolutePath}"
+            // 5) 启动线程循环写文件
+            mRecordingThread = Thread {
+                writeAudioDataToFile(outputFile, bufferSize)
+            }.apply {
+                start()
+            }
+
+            // 更新 UI
+            recordingStatusTextView?.post {
+                recordingStatusTextView?.text = "Recording..."
+                recordingPathTextView?.text = "Recording to: ${outputFile.absolutePath}"
+            }
+            
+        } catch (e: UnsupportedOperationException) {
+            Log.e(TAG, "UnsupportedOperationException: ${e.message}")
+            Log.e(TAG, "This usually means the app lacks proper permissions or is not signed as a system app")
+            isRecording = false
+            throw e
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException: ${e.message}")
+            Log.e(TAG, "Audio capture permission denied")
+            isRecording = false
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error during audio capture setup: ${e.message}", e)
+            isRecording = false
+            throw e
         }
     }
 

@@ -1,11 +1,9 @@
 package com.example.mymediaplayer
 
-import android.app.Activity
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
-import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -88,9 +86,6 @@ class MainActivity : AppCompatActivity(),
     private lateinit var musicInfoLayout: LinearLayout
 
     // ====== 新增：AudioPlaybackCapture，用于捕获系统音频 ======
-    private var mediaProjection: MediaProjection? = null // 记录授权后得到的 MediaProjection
-    private val audioPlaybackCapture = AudioPlaybackCapture() // 核心录音类
-
     // UI显示录音状态
     private lateinit var tvCapturePath: TextView
     private lateinit var btnAudioCapture: Button
@@ -156,23 +151,15 @@ class MainActivity : AppCompatActivity(),
         tvCapturePath = findViewById(R.id.tvCapturePath)
         btnAudioCapture = findViewById(R.id.btnAudioCapture)
 
-        audioPlaybackCapture.setRecordingStatusTextView(findViewById(R.id.tvRecordingStatus))
-        audioPlaybackCapture.setRecordingPathTextView(tvCapturePath)
-
         // 2) 点击开始/停止录制
         btnAudioCapture.setOnClickListener {
-            if (audioPlaybackCapture.isRecording) {
+            val service = AudioCaptureService.getInstance()
+            if (service != null && service.isRecording()) {
                 // 如果正在录制，则停止
-                val path = audioPlaybackCapture.stopCapture()
-                tvCapturePath.text = "Capture Path: $path"
+                stopSystemAudioCapture()
             } else {
-                // 未在录制 -> 开始录制
-                // 如果没 MediaProjection，就先申请
-                if (mediaProjection == null) {
-                    requestMediaProjection()
-                } else {
-                    startSystemAudioCapture()
-                }
+                // 未在录制 -> 先进行权限检查和诊断
+                performPermissionCheck()
             }
         }
     }
@@ -216,14 +203,66 @@ class MainActivity : AppCompatActivity(),
         val intent = mpManager.createScreenCaptureIntent()
         startActivityForResult(intent, REQUEST_CODE_MEDIA_PROJECTION)
     }
+    
+    /**
+     * 执行权限检查和诊断
+     */
+    private fun performPermissionCheck() {
+        val permissionChecker = PermissionChecker(this)
+        val status = permissionChecker.checkAllPermissions()
+        
+        val diagnosticInfo = permissionChecker.getDiagnosticInfo(status)
+        val solutions = permissionChecker.getSolutionSuggestions(status)
+        
+        Log.i(TAG, "权限诊断信息: $diagnosticInfo")
+        Log.i(TAG, "解决方案建议: $solutions")
+        
+        if (status.canCaptureAudio()) {
+            Log.i(TAG, "权限检查通过，开始音频捕获")
+            requestMediaProjection()
+        } else {
+            Log.w(TAG, "权限检查失败，显示诊断信息")
+            showPermissionDiagnosticDialog(diagnosticInfo, solutions, status)
+        }
+    }
+    
+    /**
+     * 显示权限诊断对话框
+     */
+    private fun showPermissionDiagnosticDialog(diagnosticInfo: String, solutions: String, status: PermissionStatus) {
+        val message = "$diagnosticInfo\n\n$solutions"
+        
+        val builder = android.app.AlertDialog.Builder(this)
+        builder.setTitle("音频捕获权限诊断")
+        builder.setMessage(message)
+        
+        // 如果至少有基础录音权限，提供继续尝试的选项
+        if (status.canRecordMicrophone()) {
+            builder.setPositiveButton("仍要尝试") { _, _ ->
+                Log.i(TAG, "用户选择继续尝试音频捕获")
+                requestMediaProjection()
+            }
+        }
+        
+        builder.setNegativeButton("取消", null)
+        builder.show()
+    }
 
-    private fun startSystemAudioCapture() {
-        // 我们将录制结果存到 /Android/data/your_package/files/Music/audio_capture.wav
-        val outputFile = File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "audio_capture.wav")
-        Log.d(TAG, "开始录制系统音频到: ${outputFile.absolutePath}")
-        mediaProjection?.let { projection ->
-            audioPlaybackCapture.startCapture(projection, outputFile)
-            tvCapturePath.text = "Recording..."
+    private fun stopSystemAudioCapture() {
+        // 停止录制服务
+        val service = AudioCaptureService.getInstance()
+        if (service != null) {
+            val outputPath = service.stopCapture()
+            if (outputPath != null) {
+                tvCapturePath.text = "录制完成: $outputPath"
+                Toast.makeText(this, "录制完成: $outputPath", Toast.LENGTH_LONG).show()
+            } else {
+                tvCapturePath.text = "录制失败"
+                Toast.makeText(this, "录制失败", Toast.LENGTH_SHORT).show()
+            }
+            stopService(Intent(this, AudioCaptureService::class.java))
+        } else {
+            Toast.makeText(this, "没有正在进行的录制", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -488,13 +527,14 @@ class MainActivity : AppCompatActivity(),
 
             REQUEST_CODE_MEDIA_PROJECTION -> {
                 if (resultCode == RESULT_OK && data != null) {
-                    // 用户同意屏幕捕捉
-                    val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                    mediaProjection = mpManager.getMediaProjection(resultCode, data)
-                    if (mediaProjection != null) {
-                        // 正式开始录制系统音频
-                        startSystemAudioCapture()
+                    // 用户同意屏幕捕捉，启动前台服务来处理MediaProjection
+                    val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
+                        putExtra("resultCode", resultCode)
+                        putExtra("data", data)
+                        putExtra("outputPath", getExternalFilesDir(null)?.absolutePath + "/captured_audio.wav")
                     }
+                    startForegroundService(serviceIntent)
+                    Toast.makeText(this, "开始录制系统音频", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, "用户拒绝屏幕捕捉权限", Toast.LENGTH_SHORT).show()
                 }
