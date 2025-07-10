@@ -20,19 +20,24 @@ android {
     }
 
     signingConfigs {
-        main {
+        create("release") {
             storeFile = file("${rootDir.absolutePath}/app/libs/platform.keystore")
-            storePassword "123456"  //密钥密码
-            keyAlias "swp_platform"  //key别名
-            keyPassword "123456"  //key密码
+            storePassword = "123456"  //密钥密码
+            keyAlias = "swp_platform"  //key别名
+            keyPassword = "123456"  //key密码
         }
     }
 
     buildTypes {
         debug {
             minifyEnabled false
-            signingConfig signingConfigs.main
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     
@@ -55,10 +60,26 @@ android {
     }
 }
 
+// 解决SystemUI MediaProjection崩溃问题的依赖配置
+configurations.all {
+    resolutionStrategy {
+        // 强制使用兼容版本的androidx.lifecycle
+        force 'androidx.lifecycle:lifecycle-runtime:2.6.2'
+        force 'androidx.lifecycle:lifecycle-common:2.6.2'
+        force 'androidx.lifecycle:lifecycle-process:2.6.2'
+        force 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    }
+}
+
 dependencies {
 
     implementation libs.androidx.core.ktx
-    implementation libs.androidx.lifecycle.runtime.ktx
+    
+    // 使用兼容版本的lifecycle库
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-common:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
+    
     implementation libs.androidx.activity.compose
     implementation platform(libs.androidx.compose.bom)
     implementation libs.androidx.ui

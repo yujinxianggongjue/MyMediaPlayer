@@ -13,7 +13,7 @@ import androidx.core.content.ContextCompat
 class PermissionChecker(private val context: Context) {
     
     companion object {
-        private const val TAG = "PermissionChecker"
+        private const val TAG = "zqqtestPermissionChecker"
     }
     
     /**

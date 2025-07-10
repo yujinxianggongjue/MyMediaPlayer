@@ -89,6 +89,6 @@ class SoundEffectManager(private val audioSessionId: Int) {
     }
 
     companion object {
-        private const val TAG = "SoundEffectManager"
+        private const val TAG = "zqqtestSoundEffectManager"
     }
 }

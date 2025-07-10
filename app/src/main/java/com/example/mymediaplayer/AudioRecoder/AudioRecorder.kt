@@ -42,7 +42,7 @@ class AudioRecorder(private val context: Context) {
     private var recordPathTextView: TextView? = null
 
     companion object {
-        private const val TAG = "AudioRecorder"
+        private const val TAG = "zqqtestAudioRecorder"
     }
 
     /**
