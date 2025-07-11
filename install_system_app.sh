@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 # 配置变量
 PACKAGE_NAME="com.example.mymediaplayer"
 APP_NAME="MyMediaPlayer"
-APK_PATH="app/build/outputs/apk/release/app-release.apk"
+APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 PERMISSIONS_FILE="${PACKAGE_NAME}.xml"
 
 # 系统路径配置

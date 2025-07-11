@@ -44,8 +44,8 @@ class MainActivity : AppCompatActivity(),
 
     companion object {
         private const val REQUEST_CODE_OPEN_FILE = 1
-        private const val REQUEST_SCREEN_CAPTURE_CODE = 1003 // 用于申请MediaProjection
-        private const val REQUEST_VIDEO_RECORD_CODE = 1000 // 录音权限请求码
+        private const val REQUEST_CODE_MEDIA_PROJECTION = 2 // 用于申请MediaProjection
+        private const val REQUEST_VIDEO_RECORD_CODE = 3 // 录音权限请求码
         private const val REQUEST_STORAGE_PERMISSION_CODE = 4 // 存储权限请求码
         private const val TAG = "zqqtestMainActivity"
     }
@@ -245,7 +245,7 @@ class MainActivity : AppCompatActivity(),
     private fun requestMediaProjection() {
         try {
             Log.d(TAG, "开始请求MediaProjection权限")
-
+            
             // 检查是否已有权限结果
             if (currentResultCode == RESULT_OK && resultData != null) {
                 Log.d(TAG, "已有MediaProjection权限，直接启动服务")
@@ -258,7 +258,7 @@ class MainActivity : AppCompatActivity(),
             val screenCaptureIntent = mediaProjectionManager.createScreenCaptureIntent()
             
             Log.d(TAG, "启动MediaProjection权限请求")
-            startActivityForResult(screenCaptureIntent, REQUEST_SCREEN_CAPTURE_CODE)
+            startActivityForResult(screenCaptureIntent, REQUEST_CODE_MEDIA_PROJECTION)
             
         } catch (e: Exception) {
             Log.e(TAG, "请求MediaProjection权限失败", e)
@@ -925,8 +925,12 @@ class MainActivity : AppCompatActivity(),
                 }
             }
 
-            REQUEST_SCREEN_CAPTURE_CODE -> {
+            REQUEST_CODE_MEDIA_PROJECTION -> {
                 handleMediaProjectionResult(resultCode, data)
+            }
+            REQUEST_STORAGE_PERMISSION_CODE -> {
+                // 处理MANAGE_EXTERNAL_STORAGE权限返回结果
+                handleManageExternalStorageResult()
             }
         }
     }
@@ -973,28 +977,30 @@ class MainActivity : AppCompatActivity(),
      */
     private fun startAudioCaptureService(resultCode: Int, data: Intent?) {
         try {
-            val outputPath = getExternalFilesDir(null)?.absolutePath + "/captured_audio.wav"
+            // 音频捕获服务现在会自动生成WAV、PCM、AAC三种格式的文件
+            val outputPath = "/storage/emulated/0/Music/captured_audio_${System.currentTimeMillis()}.wav"
             
             // 记录服务启动详情
-            Log.d(TAG, "准备启动音频捕获服务 - outputPath: $outputPath")
+            Log.d(TAG, "准备启动音频捕获服务 - 多格式录制, 输出目录: /storage/emulated/0/Music")
             AudioCaptureLogger.info(
                 AudioCaptureLogger.LogCategory.SYSTEM_INFO,
-                "启动音频捕获服务 - 输出路径: $outputPath"
+                "启动音频捕获服务 - 多格式录制 (WAV/PCM/AAC), 输出目录: /storage/emulated/0/Music"
             )
             
             // 记录性能监控开始
             if (::performanceMonitor.isInitialized) {
-                performanceMonitor.startCapture("AudioCaptureService")
+                performanceMonitor.startCapture("AudioCaptureService_MultiFormat")
             }
             
             val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
                 putExtra("resultCode", resultCode)
                 putExtra("data", data)
                 putExtra("outputPath", outputPath)
+                putExtra("audioFormat", "WAV") // 主格式，但会同时生成所有格式
             }
             
             startForegroundService(serviceIntent)
-            Log.d(TAG, "音频捕获服务已启动")
+            Log.d(TAG, "音频捕获服务已启动 - 多格式录制")
             
             isAudioCaptureActive = true
             isCapturing = true
@@ -1003,7 +1009,7 @@ class MainActivity : AppCompatActivity(),
             // 记录成功启动
             AudioCaptureLogger.logCaptureAttempt("AudioCaptureService", mapOf("outputPath" to outputPath))
             
-            Toast.makeText(this, "音频捕获已启动", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "音频捕获已启动 - 将生成WAV/PCM/AAC三种格式文件", Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
             Log.e(TAG, "启动音频捕获服务失败", e)
@@ -1284,10 +1290,21 @@ class MainActivity : AppCompatActivity(),
         Log.d(TAG, "开始常规权限检查")
         
         val recordPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-        val storagePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
-        } else {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        val storagePermission = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                // Android 11+ 检查MANAGE_EXTERNAL_STORAGE权限
+                if (Environment.isExternalStorageManager()) {
+                    PackageManager.PERMISSION_GRANTED
+                } else {
+                    PackageManager.PERMISSION_DENIED
+                }
+            }
+            else -> {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
         }
         
         // 记录权限检查结果
@@ -1305,12 +1322,21 @@ class MainActivity : AppCompatActivity(),
         }
         
         if (storagePermission != PackageManager.PERMISSION_GRANTED) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
-                Log.d(TAG, "需要请求READ_MEDIA_AUDIO权限")
-            } else {
-                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                Log.d(TAG, "需要请求WRITE_EXTERNAL_STORAGE权限")
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                    permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
+                    Log.d(TAG, "需要请求READ_MEDIA_AUDIO权限")
+                }
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                    // Android 11+ 需要特殊处理MANAGE_EXTERNAL_STORAGE权限
+                    Log.d(TAG, "需要请求MANAGE_EXTERNAL_STORAGE权限")
+                    requestManageExternalStoragePermission()
+                    return // 提前返回，等待权限结果
+                }
+                else -> {
+                    permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    Log.d(TAG, "需要请求WRITE_EXTERNAL_STORAGE权限")
+                }
             }
         }
         
@@ -1401,11 +1427,54 @@ class MainActivity : AppCompatActivity(),
         }
     }
     
+    private fun requestManageExternalStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                Log.d(TAG, "请求MANAGE_EXTERNAL_STORAGE权限")
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                intent.data = Uri.parse("package:$packageName")
+                startActivityForResult(intent, REQUEST_STORAGE_PERMISSION_CODE)
+            } catch (e: Exception) {
+                Log.e(TAG, "无法打开MANAGE_EXTERNAL_STORAGE权限设置页面", e)
+                // 降级到普通存储权限请求
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                    REQUEST_STORAGE_PERMISSION_CODE
+                )
+            }
+        }
+    }
+
+    private fun handleManageExternalStorageResult() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (Environment.isExternalStorageManager()) {
+                Log.d(TAG, "MANAGE_EXTERNAL_STORAGE权限已授予")
+                AudioCaptureLogger.info(
+                    AudioCaptureLogger.LogCategory.SYSTEM_INFO,
+                    "MANAGE_EXTERNAL_STORAGE权限已授予"
+                )
+                Toast.makeText(this, "存储权限已开启", Toast.LENGTH_SHORT).show()
+                // 继续权限检查流程
+                proceedWithPermissionCheck()
+            } else {
+                Log.w(TAG, "MANAGE_EXTERNAL_STORAGE权限被拒绝")
+                AudioCaptureLogger.error(
+                    AudioCaptureLogger.LogCategory.PERMISSION,
+                    "MANAGE_EXTERNAL_STORAGE权限被拒绝"
+                )
+                Toast.makeText(this, "存储权限被拒绝，将使用应用专用目录", Toast.LENGTH_LONG).show()
+                // 即使权限被拒绝，也继续流程，使用应用专用目录
+                proceedWithPermissionCheck()
+            }
+        }
+    }
+
     private fun performPermissionCheck() {
         Log.d(TAG, "执行MediaProjection权限检查")
         val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val intent = mediaProjectionManager.createScreenCaptureIntent()
-        startActivityForResult(intent, REQUEST_SCREEN_CAPTURE_CODE)
+        startActivityForResult(intent, REQUEST_CODE_MEDIA_PROJECTION)
     }
 
     // ============ 内存管理优化 ============

@@ -22,7 +22,7 @@ import java.io.IOException
 class AudioPlaybackCapture {
 
     companion object {
-        private const val TAG = "AudioPlaybackCapture"
+        private const val TAG = "zqqtestAudioPlaybackCapture"
 
         // 默认录制配置：44100Hz，单声道16bit
         private const val SAMPLE_RATE = 44100
