@@ -8,6 +8,9 @@ android {
     namespace 'com.example.mymediaplayer'
     compileSdk 34
     apply plugin: 'kotlin-kapt'
+    
+    // 配置使用私有平台API
+    useLibrary 'org.apache.http.legacy'
 
     defaultConfig {
         applicationId "com.example.mymediaplayer"
@@ -60,6 +63,15 @@ android {
     }
 }
 
+// 配置使用framework.jar进行编译，解决SystemApi访问问题
+allprojects {
+    gradle.projectsEvaluated {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs.add('-Xbootclasspath/p:' + file('libs/framework.jar').absolutePath)
+        }
+    }
+}
+
 // 解决SystemUI MediaProjection崩溃问题的依赖配置
 configurations.all {
     resolutionStrategy {
@@ -72,7 +84,9 @@ configurations.all {
 }
 
 dependencies {
-
+    // 添加framework.jar以访问SystemApi
+    compileOnly files('libs/framework.jar')
+    
     implementation libs.androidx.core.ktx
     
     // 使用兼容版本的lifecycle库

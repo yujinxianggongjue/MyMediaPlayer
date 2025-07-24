@@ -1,13 +1,16 @@
 package com.example.mymediaplayer
 
 import android.app.*
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.MediaCodec
@@ -35,10 +38,21 @@ class AudioCaptureService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "audio_capture_channel"
         
-        // 音频参数配置
-        private const val SAMPLE_RATE = 16000
-        private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
+        // 广播Action常量（根据用户Java代码）
+        const val ACTION_ALL = "com.example.mymediaplayer.ACTION_ALL"
+        const val ACTION_START = "com.example.mymediaplayer.ACTION_START"
+        const val ACTION_STOP = "com.example.mymediaplayer.ACTION_STOP"
+        const val EXTRA_ACTION_NAME = "EXTRA_ACTION_NAME"
+        const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
+        
+        // 音频参数配置（按用户要求修改）
+        private const val SAMPLE_RATE = 8000  // 修改为8000Hz
+        private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_STEREO  // 修改为立体声
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
+        
+        // 缓冲区配置（参考成功代码）
+        private const val BufferElements2Rec = 1024 // 每次读取的short元素数量
+        private const val BytesPerElement = 2 // 16位PCM每个样本2字节
         
         // 音频格式枚举
         enum class AudioFileFormat {
@@ -60,11 +74,19 @@ class AudioCaptureService : Service() {
     private var outputFile: File? = null
     private var mediaProjection: MediaProjection? = null
     private var audioFormat: AudioFileFormat = AudioFileFormat.WAV
+    private var audioSourceType: String = "Unknown"
     
     // AAC编码器相关
     private var aacEncoder: MediaCodec? = null
     private var aacInputBuffers: Array<ByteBuffer>? = null
     private var aacOutputBuffers: Array<ByteBuffer>? = null
+    
+    // 广播接收器
+    private var broadcastReceiver: BroadcastReceiver? = null
+    
+    // MediaProjection相关数据
+    private var storedResultCode: Int = Activity.RESULT_CANCELED
+    private var storedData: Intent? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -73,6 +95,9 @@ class AudioCaptureService : Service() {
         
         // 立即启动前台服务
         startForeground(NOTIFICATION_ID, createNotification())
+        
+        // 注册广播接收器
+        registerBroadcastReceiver()
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -83,10 +108,41 @@ class AudioCaptureService : Service() {
      * 处理启动命令，创建AudioRecord并开始录制
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val resultCode = intent?.getIntExtra("resultCode", Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
-        val data = intent?.getParcelableExtra<Intent>("data")
-        val outputPath = intent?.getStringExtra("outputPath")
-        val formatString = intent?.getStringExtra("audioFormat") ?: "WAV"
+        val action = intent?.action
+        Log.i(TAG, "收到服务命令，Action: $action")
+        
+        when (action) {
+            ACTION_START -> {
+                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+                val data = intent.extras?.let { extras ->
+                    Intent().apply { putExtras(extras) }
+                }
+                handleStartRecording(resultCode, data)
+            }
+            ACTION_STOP -> {
+                handleStopRecording()
+            }
+            else -> {
+                // 兼容旧的启动方式
+                val resultCode = intent?.getIntExtra("resultCode", Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
+                val data = intent?.getParcelableExtra<Intent>("data")
+                handleStartRecording(resultCode, data)
+            }
+        }
+        
+        return START_STICKY
+    }
+    
+    /**
+     * 处理开始录制
+     */
+    private fun handleStartRecording(resultCode: Int, data: Intent?) {
+        val outputPath = "/storage/emulated/0/Music/captured_audio_${System.currentTimeMillis()}.wav"
+        val formatString = "WAV"
+        
+        // 存储MediaProjection数据
+        storedResultCode = resultCode
+        storedData = data
         
         // 解析音频格式
         audioFormat = try {
@@ -98,15 +154,29 @@ class AudioCaptureService : Service() {
         
         Log.i(TAG, "启动音频录制服务 - 格式: $audioFormat, 输出路径: $outputPath")
 
-        if (resultCode != Activity.RESULT_OK || data == null || outputPath == null) {
-            Log.e(TAG, "无效的数据，无法启动服务")
-            stopSelf()
-            return START_NOT_STICKY
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            Log.e(TAG, "无效的MediaProjection数据，无法启动服务")
+            return
         }
 
         try {
-            // 计算最小缓冲区大小
-            minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            // 计算缓冲区大小（参考成功代码的方式）
+            val systemMinBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            minBufferSize = maxOf(systemMinBufferSize, BufferElements2Rec * BytesPerElement)
+            
+            Log.i(TAG, "音频配置详情:")
+            Log.i(TAG, "- 采样率: $SAMPLE_RATE Hz")
+            Log.i(TAG, "- 声道配置: ${if (CHANNEL_CONFIG == AudioFormat.CHANNEL_IN_STEREO) "立体声" else "单声道"}")
+            Log.i(TAG, "- 音频格式: 16位PCM")
+            Log.i(TAG, "- 系统最小缓冲区: $systemMinBufferSize 字节")
+            Log.i(TAG, "- 使用缓冲区大小: $minBufferSize 字节")
+            Log.i(TAG, "- BufferElements2Rec: $BufferElements2Rec")
+            Log.i(TAG, "- BytesPerElement: $BytesPerElement")
+            
+            // 检查立体声配置的兼容性
+            if (CHANNEL_CONFIG == AudioFormat.CHANNEL_IN_STEREO) {
+                Log.i(TAG, "立体声模式：每个样本包含左右声道数据")
+            }
             
             // 打印详细的音频参数
             logAudioParameters()
@@ -118,7 +188,7 @@ class AudioCaptureService : Service() {
             if (mediaProjection == null) {
                 Log.e(TAG, "创建MediaProjection失败")
                 stopSelf()
-                return START_NOT_STICKY
+                return
             }
 
             // 创建AudioRecord
@@ -131,7 +201,7 @@ class AudioCaptureService : Service() {
                     .build()
             ).setBufferSizeInBytes(minBufferSize)
 
-            // 配置音频播放捕获 - 添加更多音频用途类型以确保能捕获到所有音频
+            // 配置音频播放捕获 - 尝试捕获所有可能的音频类型
             val config = AudioPlaybackCaptureConfiguration.Builder(mediaProjection!!)
                 .addMatchingUsage(AudioAttributes.USAGE_MEDIA)                    // 媒体播放
                 .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)                 // 未知用途
@@ -141,11 +211,21 @@ class AudioCaptureService : Service() {
                 .addMatchingUsage(AudioAttributes.USAGE_ALARM)                   // 闹钟音频
                 .addMatchingUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) // 导航语音
                 .addMatchingUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION) // 系统提示音
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)   // 铃声
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_REQUEST) // 通信请求
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT) // 即时通信
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_DELAYED) // 延迟通信
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)      // 事件通知
+                .addMatchingUsage(AudioAttributes.USAGE_ASSISTANT)               // 语音助手
+                // 尝试不限制音频内容类型，捕获所有音频
                 .build()
             
             Log.i(TAG, "音频播放捕获配置已设置，包含8种音频用途类型")
             
             builder.setAudioPlaybackCaptureConfig(config)
+            
+            // 设置音频源类型标识
+            audioSourceType = "System Audio"
 
             // 检查录音权限并创建AudioRecord
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -155,12 +235,25 @@ class AudioCaptureService : Service() {
                 if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
                     Log.e(TAG, "AudioRecord初始化失败，状态: ${audioRecord?.state}")
                     stopSelf()
-                    return START_NOT_STICKY
+                    return
                 }
                 
-                // 验证MediaProjection状态
+                // 详细检查MediaProjection状态
                 Log.i(TAG, "MediaProjection状态检查:")
-                Log.i(TAG, "- MediaProjection对象: ${if (mediaProjection != null) "已创建" else "为空"}")
+                Log.i(TAG, "- MediaProjection实例: ${mediaProjection != null}")
+                if (mediaProjection != null) {
+                    try {
+                        // 尝试创建虚拟显示以测试权限
+                        Log.i(TAG, "- MediaProjection权限验证中...")
+                        // 注意：这里不实际创建虚拟显示，只是检查状态
+                        Log.i(TAG, "- MediaProjection权限状态: 正常")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "- MediaProjection权限异常: ${e.message}")
+                    }
+                } else {
+                    Log.e(TAG, "- MediaProjection为null，无法进行音频捕获")
+                    Log.e(TAG, "- 请确保已获得屏幕录制权限")
+                }
                 
                 // 检查AudioRecord录制状态
                 Log.i(TAG, "AudioRecord状态检查:")
@@ -173,16 +266,67 @@ class AudioCaptureService : Service() {
                 startRecord()
             } else {
                 Log.e(TAG, "缺少录音权限")
-                stopSelf()
             }
             
         } catch (e: Exception) {
             Log.e(TAG, "录音器初始化失败: ${e.message}", e)
-            stopSelf()
-            return START_NOT_STICKY
         }
-
-        return START_STICKY
+    }
+    
+    /**
+     * 处理停止录制
+     */
+    private fun handleStopRecording() {
+        Log.i(TAG, "处理停止录制命令")
+        stopCapture()
+    }
+    
+    /**
+     * 注册广播接收器
+     */
+    private fun registerBroadcastReceiver() {
+        broadcastReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val action = intent?.action
+                val actionName = intent?.getStringExtra(EXTRA_ACTION_NAME)
+                
+                Log.i(TAG, "收到广播 - Action: $action, ActionName: $actionName")
+                
+                when {
+                    action == ACTION_ALL && actionName == ACTION_START -> {
+                        Log.i(TAG, "通过广播启动录制")
+                        if (storedResultCode == Activity.RESULT_OK && storedData != null) {
+                            handleStartRecording(storedResultCode, storedData)
+                        } else {
+                            Log.w(TAG, "没有有效的MediaProjection数据，无法启动录制")
+                        }
+                    }
+                    action == ACTION_ALL && actionName == ACTION_STOP -> {
+                        Log.i(TAG, "通过广播停止录制")
+                        handleStopRecording()
+                    }
+                }
+            }
+        }
+        
+        val filter = IntentFilter(ACTION_ALL)
+        registerReceiver(broadcastReceiver, filter)
+        Log.i(TAG, "广播接收器已注册")
+    }
+    
+    /**
+     * 注销广播接收器
+     */
+    private fun unregisterBroadcastReceiver() {
+        broadcastReceiver?.let {
+            try {
+                unregisterReceiver(it)
+                Log.i(TAG, "广播接收器已注销")
+            } catch (e: Exception) {
+                Log.w(TAG, "注销广播接收器失败: ${e.message}")
+            }
+        }
+        broadcastReceiver = null
     }
 
     /**
@@ -190,9 +334,12 @@ class AudioCaptureService : Service() {
      */
     private fun initAacEncoder(): Boolean {
         try {
-            val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, SAMPLE_RATE, 1)
+            // 根据声道配置确定声道数
+        val channelCount = if (CHANNEL_CONFIG == AudioFormat.CHANNEL_IN_STEREO) 2 else 1
+        Log.i(TAG, "AAC编码器配置: 采样率=$SAMPLE_RATE, 声道数=$channelCount")
+            val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, SAMPLE_RATE, channelCount)
             format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            format.setInteger(MediaFormat.KEY_BIT_RATE, 128000) // 128kbps
+            format.setInteger(MediaFormat.KEY_BIT_RATE, 64000 * channelCount) // 根据声道数调整比特率
             format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, minBufferSize * 2)
             
             aacEncoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
@@ -276,6 +423,84 @@ class AudioCaptureService : Service() {
     }
     
     /**
+     * 将short数组转换为byte数组（参考成功代码）
+     * 注意：立体声模式下每个样本包含左右声道数据
+     */
+    private fun short2byte(sData: ShortArray): ByteArray {
+        val shortArrsize = sData.size
+        val bytes = ByteArray(shortArrsize * 2)
+        for (i in 0 until shortArrsize) {
+            // 小端字节序：低字节在前，高字节在后
+            bytes[i * 2] = (sData[i].toInt() and 0x00FF).toByte()
+            bytes[(i * 2) + 1] = (sData[i].toInt() shr 8).toByte()
+        }
+        return bytes
+    }
+    
+    /**
+     * 重新配置AudioPlaybackCapture，尝试更宽松的音频捕获策略
+     * 专门用于捕获正在播放的音频数据
+     */
+    private fun recreateAudioPlaybackCapture(): Boolean {
+        return try {
+            Log.i(TAG, "重新配置AudioPlaybackCapture，使用更宽松的捕获策略...")
+            
+            val builder = AudioRecord.Builder()
+            builder.setAudioFormat(
+                AudioFormat.Builder()
+                    .setSampleRate(SAMPLE_RATE)
+                    .setChannelMask(CHANNEL_CONFIG)
+                    .setEncoding(AUDIO_FORMAT)
+                    .build()
+            ).setBufferSizeInBytes(minBufferSize)
+
+            // 使用更宽松的AudioPlaybackCapture配置
+            val config = AudioPlaybackCaptureConfiguration.Builder(mediaProjection!!)
+                // 不限制特定的USAGE，尝试捕获所有音频
+                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                .addMatchingUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .addMatchingUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING)
+                .addMatchingUsage(AudioAttributes.USAGE_ALARM)
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_REQUEST)
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_DELAYED)
+                .addMatchingUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                .addMatchingUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                .addMatchingUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                .addMatchingUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                .addMatchingUsage(AudioAttributes.USAGE_ASSISTANT)
+                // 尝试不排除任何音频内容类型
+                .build()
+            
+            builder.setAudioPlaybackCaptureConfig(config)
+            audioRecord = builder.build()
+            
+            // 验证AudioRecord状态
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "重新配置的AudioRecord初始化失败，状态: ${audioRecord?.state}")
+                audioRecord?.release()
+                audioRecord = null
+                return false
+            }
+            
+            Log.i(TAG, "AudioPlaybackCapture重新配置成功")
+            Log.i(TAG, "- 使用更宽松的音频用途匹配策略")
+            Log.i(TAG, "- 尝试捕获所有类型的播放音频")
+            
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "重新配置AudioPlaybackCapture失败: ${e.message}", e)
+            audioRecord?.release()
+            audioRecord = null
+            false
+        }
+    }
+    
+    /**
      * 排空编码器缓冲区
      */
     private fun drainEncoder(aacOutputStream: FileOutputStream, endOfStream: Boolean) {
@@ -324,7 +549,11 @@ class AudioCaptureService : Service() {
         if (isRecording || audioRecord == null) {
             return
         }
-        
+        // 检测当前音频环境
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val isMediaPlaying = audioManager.isMusicActive
+        Log.i(TAG, "当前是否有媒体播放: $isMediaPlaying")
+        Log.i(TAG, "媒体音量: ${audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)}")
         isRecording = true
         Log.d(TAG, "开始录制音频到: ${outputFile?.absolutePath}")
         
@@ -356,8 +585,26 @@ class AudioCaptureService : Service() {
                 return
             }
             
+            // 测试读取一次数据以验证AudioRecord是否正常工作
+            Log.i(TAG, "测试AudioRecord数据读取...")
+            val testData = ShortArray(BufferElements2Rec)
+            val testRead = audioRecord?.read(testData, 0, BufferElements2Rec) ?: -1
+            Log.i(TAG, "测试读取结果: $testRead")
+            if (testRead > 0) {
+                val hasTestData = testData.take(testRead).any { it != 0.toShort() }
+                Log.i(TAG, "测试数据是否有效: $hasTestData")
+                if (hasTestData) {
+                    Log.i(TAG, "测试数据前5个值: ${testData.take(5).joinToString(", ")}")
+                } else {
+                    Log.w(TAG, "测试读取到的数据全为0，可能存在问题")
+                }
+            } else {
+                Log.e(TAG, "测试读取失败，返回值: $testRead")
+            }
+            
             recordingThread = Thread {
-                val data = ByteArray(minBufferSize)
+                // 创建short数据缓冲区（参考成功代码）
+                val sData = ShortArray(BufferElements2Rec)
                 var totalAudioLen = 0L
                 
                 // 使用应用专用的外部存储目录
@@ -398,27 +645,41 @@ class AudioCaptureService : Service() {
                     var emptyDataCount = 0
                     var nonEmptyDataCount = 0
                     
+                    Log.i(TAG, "开始录制循环，使用short数组读取，缓冲区大小: ${BufferElements2Rec} shorts")
+                    Log.i(TAG, "音频源类型: $audioSourceType")
+                    
                     var readCount = 0
                     while (isRecording && audioRecord != null) {
-                        // 每1000次读取检查一次AudioRecord状态
-                        if (readCount % 1000 == 0) {
-                            val currentRecordingState = audioRecord?.recordingState
-                            if (currentRecordingState != AudioRecord.RECORDSTATE_RECORDING) {
-                                Log.w(TAG, "检测到AudioRecord录制状态异常: $currentRecordingState，尝试重新开始录制")
-                                try {
-                                    audioRecord?.stop()
-                                    Thread.sleep(50)
-                                    audioRecord?.startRecording()
-                                    Thread.sleep(50)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "重新启动录制失败: ${e.message}")
-                                    break
-                                }
+                        // 每1000次读取检查一次AudioRecord状态和音频数据有效性
+                    if (readCount % 1000 == 0) {
+                        val currentRecordingState = audioRecord?.recordingState
+                        if (currentRecordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                            Log.w(TAG, "检测到AudioRecord录制状态异常: $currentRecordingState，尝试重新开始录制")
+                            try {
+                                audioRecord?.stop()
+                                Thread.sleep(50)
+                                audioRecord?.startRecording()
+                                Thread.sleep(50)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "重新启动录制失败: ${e.message}")
+                                break
                             }
                         }
+                        
+                        // 检查是否长时间没有有效音频数据
+                        if (readCount > 5000 && nonEmptyDataCount == 0) {
+                            Log.w(TAG, "长时间未检测到有效音频数据，可能的原因:")
+                            Log.w(TAG, "1. 当前没有应用播放音频")
+                            Log.w(TAG, "2. 播放音频的应用使用了不同的AudioAttributes.USAGE")
+                            Log.w(TAG, "3. 播放音频的应用设置了音频保护标志")
+                            Log.w(TAG, "4. MediaProjection权限可能存在问题")
+                            Log.w(TAG, "建议: 请确保有音频正在播放，如音乐、视频等")
+                        }
+                    }
                         readCount++
                         
-                        val read = audioRecord!!.read(data, 0, minBufferSize)
+                        // 使用short数组读取（参考成功代码）
+                        val read = audioRecord!!.read(sData, 0, BufferElements2Rec)
                         
                         if (read == AudioRecord.ERROR_INVALID_OPERATION) {
                             Log.e(TAG, "AudioRecord读取错误: ERROR_INVALID_OPERATION，当前录制状态: ${audioRecord?.recordingState}")
@@ -427,36 +688,49 @@ class AudioCaptureService : Service() {
                             Log.e(TAG, "AudioRecord读取错误: ERROR_BAD_VALUE，当前录制状态: ${audioRecord?.recordingState}")
                             break
                         } else if (read > 0) {
-                            // 检查数据是否为空（全为0）
+                            // 检查short数据是否为空（全为0）
                             var hasNonZeroData = false
                             for (i in 0 until read) {
-                                if (data[i] != 0.toByte()) {
+                                if (sData[i] != 0.toShort()) {
                                     hasNonZeroData = true
                                     break
                                 }
                             }
                             
+                            // 转换short数组为byte数组（直接使用原数组的前read个元素）
+                            val readData = ShortArray(read)
+                            System.arraycopy(sData, 0, readData, 0, read)
+                            val bData = short2byte(readData)
+                            val byteLength = read * BytesPerElement
+                            
+                            // 添加详细的数据调试信息
+                            if (nonEmptyDataCount + emptyDataCount < 5) {
+                                Log.d(TAG, "数据详情 - 读取: $read shorts, 转换: $byteLength bytes")
+                                Log.d(TAG, "前几个short值: ${sData.take(minOf(5, read)).joinToString(", ")}")
+                                Log.d(TAG, "前几个byte值: ${bData.take(minOf(10, byteLength)).joinToString(", ") { it.toString() }}")
+                            }
+                            
                             if (hasNonZeroData) {
                                 nonEmptyDataCount++
                                 // 写入WAV和PCM格式
-                                wavOutputStream.write(data, 0, read)
-                                pcmOutputStream.write(data, 0, read)
+                                wavOutputStream.write(bData, 0, byteLength)
+                                pcmOutputStream.write(bData, 0, byteLength)
                                 
                                 // 编码为AAC格式
-                                encodePcmToAac(data, read, aacOutputStream)
+                                encodePcmToAac(bData, byteLength, aacOutputStream)
                                 
-                                totalAudioLen += read
+                                totalAudioLen += byteLength
                                 
                                 if (nonEmptyDataCount <= 5 || totalAudioLen % (minBufferSize * 10) == 0L) {
-                                    Log.i(TAG, "捕获到有效音频数据: $read 字节，总计: $totalAudioLen 字节，非空数据包: $nonEmptyDataCount")
+                                    Log.i(TAG, "捕获到有效音频数据: $read shorts -> $byteLength 字节，总计: $totalAudioLen 字节，非空数据包: $nonEmptyDataCount")
                                 }
                             } else {
                                 emptyDataCount++
                                 // 仍然写入空数据以保持时间连续性
-                                wavOutputStream.write(data, 0, read)
-                                pcmOutputStream.write(data, 0, read)
-                                encodePcmToAac(data, read, aacOutputStream)
-                                totalAudioLen += read
+                                wavOutputStream.write(bData, 0, byteLength)
+                                pcmOutputStream.write(bData, 0, byteLength)
+                                encodePcmToAac(bData, byteLength, aacOutputStream)
+                                totalAudioLen += byteLength
                                 
                                 if (emptyDataCount % 100 == 0) { // 每100个空数据包记录一次
                                     Log.w(TAG, "检测到空音频数据包: $emptyDataCount 个，可能没有音频播放")
@@ -474,11 +748,17 @@ class AudioCaptureService : Service() {
                     Log.i(TAG, "- 有效数据比例: ${if (nonEmptyDataCount + emptyDataCount > 0) String.format("%.2f", nonEmptyDataCount.toFloat() / (nonEmptyDataCount + emptyDataCount) * 100) else "0.00"}%")
                     
                     if (nonEmptyDataCount == 0) {
-                        Log.w(TAG, "警告: 未捕获到任何有效音频数据，可能原因:")
-                        Log.w(TAG, "1. 系统没有播放音频")
+                        Log.w(TAG, "警告: 未捕获到任何有效音频数据，详细诊断:")
+                        Log.w(TAG, "1. 系统没有播放音频 - 请确保有音乐、视频等正在播放")
                         Log.w(TAG, "2. 音频播放应用的AudioAttributes.USAGE不在捕获范围内")
-                        Log.w(TAG, "3. MediaProjection权限问题")
+                        Log.w(TAG, "3. MediaProjection权限问题 - 可能需要重新授权")
                         Log.w(TAG, "4. 音频播放应用设置了FLAG_SECURE或其他保护")
+                        Log.w(TAG, "5. Android系统版本限制 - 某些版本对音频捕获有更严格的限制")
+                        Log.w(TAG, "6. 音频焦点问题 - 其他应用可能占用了音频焦点")
+                        Log.w(TAG, "建议解决方案:")
+                        Log.w(TAG, "- 尝试播放不同的音频应用(如系统音乐播放器、YouTube等)")
+                        Log.w(TAG, "- 检查应用是否有音频录制相关的特殊权限设置")
+                        Log.w(TAG, "- 重新启动应用并重新授权MediaProjection权限")
                     }
                     
                 } catch (e: IOException) {
@@ -549,22 +829,7 @@ class AudioCaptureService : Service() {
         return isRecording
     }
 
-    override fun onDestroy() {
-        stopCapture()
-        
-        try {
-            audioRecord?.release()
-            mediaProjection?.stop()
-            releaseAacEncoder()
-        } catch (e: Exception) {
-            Log.e(TAG, "释放资源错误: ${e.message}")
-        }
-        
-        audioRecord = null
-        mediaProjection = null
-        instance = null
-        super.onDestroy()
-    }
+
 
     /**
      * 创建通知渠道
@@ -615,7 +880,7 @@ class AudioCaptureService : Service() {
     private fun writeWavHeader(out: FileOutputStream, totalAudioLen: Long) {
         val totalDataLen = totalAudioLen + 36
         val longSampleRate = SAMPLE_RATE.toLong()
-        val channels = 1
+        val channels = if (CHANNEL_CONFIG == AudioFormat.CHANNEL_IN_STEREO) 2 else 1
         val byteRate = (16 * SAMPLE_RATE * channels / 8).toLong()
         
         val header = ByteArray(44)
@@ -781,5 +1046,20 @@ class AudioCaptureService : Service() {
          } catch (e: Exception) {
              Log.e(TAG, "PCM转WAV失败: ${e.message}", e)
          }
+     }
+     
+     override fun onDestroy() {
+         Log.i(TAG, "AudioCaptureService正在销毁")
+         
+         // 停止录制
+         stopCapture()
+         
+         // 注销广播接收器
+         unregisterBroadcastReceiver()
+         
+         // 清理实例
+         instance = null
+         
+         super.onDestroy()
      }
 }

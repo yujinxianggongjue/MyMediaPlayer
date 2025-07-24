@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.SurfaceHolder
@@ -31,7 +32,6 @@ import com.example.mymediaplayer.AudioCapturePerformanceMonitor
 import com.example.mymediaplayer.AudioCaptureErrorHandler
 import com.example.mymediaplayer.AudioCaptureStrategy
 import com.example.mymediaplayer.AudioCaptureStrategyManager
-
 /**
  * MainActivity 是应用的主活动，负责播放、可视化等功能。
  * 演示如何整合 AudioPlaybackCapture 来录制系统播放的音频。
@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity(),
 
     companion object {
         private const val REQUEST_CODE_OPEN_FILE = 1
-        private const val REQUEST_CODE_MEDIA_PROJECTION = 2 // 用于申请MediaProjection
+        private const val REQUEST_CODE_MEDIA_PROJECTION = 1001 // 用于申请MediaProjection
         private const val REQUEST_VIDEO_RECORD_CODE = 3 // 录音权限请求码
         private const val REQUEST_STORAGE_PERMISSION_CODE = 4 // 存储权限请求码
         private const val TAG = "zqqtestMainActivity"
@@ -124,7 +124,21 @@ class MainActivity : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
+        Log.d("zqqtest", "MyMainActivity onCreate")
+        Log.d("zqqtest", "MyMainActivity first boot set some parmeter");
+        Settings.Global.putInt(getContentResolver(), Settings.Global.DEVICE_PROVISIONED, 1);
+        // 使用反射访问SystemApi中的USER_SETUP_COMPLETE
+        try {
+            val userSetupCompleteField = Settings.Secure::class.java.getDeclaredField("USER_SETUP_COMPLETE")
+            val userSetupComplete = userSetupCompleteField.get(null) as String
+            Settings.Secure.putInt(getContentResolver(), userSetupComplete, 1)
+            Log.d("zqqtest", "成功设置USER_SETUP_COMPLETE")
+        } catch (e: Exception) {
+            Log.e("zqqtest", "设置USER_SETUP_COMPLETE失败，使用硬编码值", e)
+            // 如果反射失败，使用硬编码的字符串值
+            Settings.Secure.putInt(getContentResolver(), "user_setup_complete", 1)
+        }
+        Log.d("zqqtest", "MyMainActivity onCreate")
         // 初始化控件
         initViews()
         handler = Handler(Looper.getMainLooper())
@@ -133,7 +147,7 @@ class MainActivity : AppCompatActivity(),
         permissionManager = PermissionManager(this, this)
         permissionManager.checkAndRequestRecordAudioPermission()
         
-        // 初始化MediaProjection
+        // 初始化MediaProjection 没申请到权限
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         compatMediaProjectionManager = CompatMediaProjectionManager(this)
         
@@ -242,26 +256,23 @@ class MainActivity : AppCompatActivity(),
      * 请求MediaProjection权限
      * 参考用户提供的Java代码逻辑，简化权限申请流程
      */
-    private fun requestMediaProjection() {
+    /**
+     * 初始化音频捕获 - 根据用户提供的Java代码逻辑
+     * 简化MediaProjection权限请求流程
+     */
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    private fun initAudioCapture() {
         try {
-            Log.d(TAG, "开始请求MediaProjection权限")
+            Log.d(TAG, "初始化音频捕获 - 请求MediaProjection权限")
             
-            // 检查是否已有权限结果
-            if (currentResultCode == RESULT_OK && resultData != null) {
-                Log.d(TAG, "已有MediaProjection权限，直接启动服务")
-                startAudioCaptureService(currentResultCode, resultData)
-                return
-            }
-            
-            // 创建MediaProjection权限请求
-            val mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            val screenCaptureIntent = mediaProjectionManager.createScreenCaptureIntent()
+            val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            val intent = manager.createScreenCaptureIntent()
             
             Log.d(TAG, "启动MediaProjection权限请求")
-            startActivityForResult(screenCaptureIntent, REQUEST_CODE_MEDIA_PROJECTION)
+            startActivityForResult(intent, REQUEST_CODE_MEDIA_PROJECTION)
             
         } catch (e: Exception) {
-            Log.e(TAG, "请求MediaProjection权限失败", e)
+            Log.e(TAG, "初始化音频捕获失败", e)
             AudioCaptureLogger.error(AudioCaptureLogger.LogCategory.PERMISSION, "MediaProjection权限请求失败: ${e.message}", mapOf("errorType" to "MediaProjectionRequestFailure"))
             Toast.makeText(this, "权限请求失败，使用降级方案", Toast.LENGTH_LONG).show()
             
@@ -271,11 +282,65 @@ class MainActivity : AppCompatActivity(),
     }
     
     /**
+     * 停止录制 - 根据用户提供的Java代码逻辑
+     */
+    private fun stopRecording() {
+        try {
+            Log.d(TAG, "停止音频录制")
+            
+            val broadCastIntent = Intent().apply {
+                action = AudioCaptureService.ACTION_ALL
+                putExtra(AudioCaptureService.EXTRA_ACTION_NAME, AudioCaptureService.ACTION_STOP)
+            }
+            
+            sendBroadcast(broadCastIntent)
+            
+            // 更新UI状态
+            isCapturing = false
+            isAudioCaptureActive = false
+            updateCaptureButtonText()
+            
+            Log.d(TAG, "音频录制停止广播已发送")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "停止录制失败", e)
+            Toast.makeText(this, "停止录制失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 开始录制 - 根据用户提供的Java代码逻辑
+     */
+    private fun startRecording() {
+        try {
+            Log.d(TAG, "开始音频录制")
+            
+            val broadCastIntent = Intent().apply {
+                action = AudioCaptureService.ACTION_ALL
+                putExtra(AudioCaptureService.EXTRA_ACTION_NAME, AudioCaptureService.ACTION_START)
+            }
+            
+            sendBroadcast(broadCastIntent)
+            
+            // 更新UI状态
+            isCapturing = true
+            isAudioCaptureActive = true
+            updateCaptureButtonText()
+            
+            Log.d(TAG, "音频录制开始广播已发送")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "开始录制失败", e)
+            Toast.makeText(this, "开始录制失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
      * 开始系统音频捕获（兼容版本）
      */
     /**
      * 启动兼容模式系统音频捕获
-     * 参考用户提供的Java代码逻辑，简化权限检查流程
+     * 根据用户提供的Java代码逻辑，简化权限检查流程
      */
     private fun startSystemAudioCaptureCompat() {
         Log.d(TAG, "启动兼容模式系统音频捕获")
@@ -297,8 +362,8 @@ class MainActivity : AppCompatActivity(),
                 }
             }
             
-            // 请求MediaProjection权限
-            requestMediaProjection()
+            // 使用新的initAudioCapture方法请求MediaProjection权限
+            initAudioCapture()
             
         } catch (e: Exception) {
             Log.e(TAG, "启动兼容模式音频捕获失败", e)
@@ -533,7 +598,7 @@ class MainActivity : AppCompatActivity(),
         if (status.canRecordMicrophone()) {
             builder.setPositiveButton("仍要尝试") { _, _ ->
                 Log.i(TAG, "用户选择继续尝试音频捕获")
-                requestMediaProjection()
+                initAudioCapture()
             }
         }
         
@@ -936,28 +1001,36 @@ class MainActivity : AppCompatActivity(),
     }
     
     /**
-     * 处理MediaProjection权限结果
-     * 参考用户提供的Java代码逻辑，简化权限处理流程
+     * 处理MediaProjection权限结果 - 根据用户提供的Java代码逻辑
+     * 简化权限处理流程，直接启动MediaCaptureService
      */
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private fun handleMediaProjectionResult(resultCode: Int, data: Intent?) {
         try {
             Log.d(TAG, "处理MediaProjection权限结果 - resultCode: $resultCode, data: ${data != null}")
             
             if (resultCode == RESULT_OK && data != null) {
-                Log.d(TAG, "MediaProjection权限获取成功")
+                Log.d(TAG, "MediaProjection权限获取成功，启动MediaCaptureService")
                 
-                // 保存权限结果
-                currentResultCode = resultCode
-                resultData = data
+                // 根据用户Java代码逻辑，直接启动AudioCaptureService
+                val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
+                    action = AudioCaptureService.ACTION_START
+                    putExtra(AudioCaptureService.EXTRA_RESULT_CODE, resultCode)
+                    putExtras(data)
+                }
                 
-                // 启动音频捕获服务
-                startAudioCaptureService(resultCode, data)
+                startService(serviceIntent)
                 
-                Toast.makeText(this, "屏幕录制权限已获取，开始音频捕获", Toast.LENGTH_SHORT).show()
+                // 更新UI状态
+                isCapturing = true
+                isAudioCaptureActive = true
+                updateCaptureButtonText()
+                
+                Toast.makeText(this, "MediaProjection权限已获取，音频捕获服务已启动", Toast.LENGTH_SHORT).show()
                 
             } else {
                 Log.w(TAG, "MediaProjection权限被拒绝")
-                Toast.makeText(this, "屏幕录制权限被拒绝，使用降级方案", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "用户未授予权限", Toast.LENGTH_LONG).show()
                 
                 // 权限被拒绝时使用降级方案
                 startDirectAudioCapture()
