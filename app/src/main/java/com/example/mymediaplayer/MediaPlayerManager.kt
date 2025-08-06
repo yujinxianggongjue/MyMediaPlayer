@@ -104,6 +104,8 @@ class MediaPlayerManager(
         mediaPlayer?.let {
             if (!it.isPlaying) {
                 it.start()
+                // 通知播放状态变化
+                listener.onPlaybackStateChanged(android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING)
             }
         }
     }
@@ -115,6 +117,8 @@ class MediaPlayerManager(
         mediaPlayer?.let {
             if (it.isPlaying) {
                 it.pause()
+                // 通知播放状态变化
+                listener.onPlaybackStateChanged(android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED)
             }
         }
     }
@@ -126,6 +130,8 @@ class MediaPlayerManager(
         mediaPlayer?.let {
             it.seekTo(0)
             it.start()
+            // 通知播放状态变化
+            listener.onPlaybackStateChanged(android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING)
         }
     }
 
@@ -239,10 +245,12 @@ class MediaPlayerManager(
             if (it.isPlaying) {
                 it.stop()
             }
+            // 通知播放状态变化
+            listener.onPlaybackStateChanged(android.support.v4.media.session.PlaybackStateCompat.STATE_STOPPED)
         }
     }
 
     companion object {
-        private const val TAG = "MediaPlayerManager"
+        private const val TAG = "zqqtestMediaPlayerManager"
     }
 }

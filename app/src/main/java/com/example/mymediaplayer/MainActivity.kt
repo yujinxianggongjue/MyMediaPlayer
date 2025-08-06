@@ -86,11 +86,59 @@ class MainActivity : AppCompatActivity(),
 
     private var musicInfoDisplay: MusicInfoDisplay? = null
     private lateinit var handler: Handler
+    
+    /**
+     * 进度条更新任务
+     * 使用Runnable实现周期性进度条更新
+     */
+    private val updateSeekBarRunnable = object : Runnable {
+        override fun run() {
+            if (!isPaused && !isUserSeekingProgress) {
+                try {
+                    // 优先从MediaService获取位置
+                    val currentPosition: Int = if (mediaService != null && isServiceBound) {
+                        val servicePosition = mediaService?.getCurrentPosition() ?: 0L
+                        Log.d(TAG, "从MediaService获取播放位置: ${servicePosition}ms")
+                        servicePosition.toInt()
+                    } else {
+                        val managerPosition = mediaPlayerManager.getCurrentPosition()
+                        Log.d(TAG, "从MediaPlayerManager获取播放位置: ${managerPosition}ms")
+                        managerPosition
+                    }
+                    
+                    val duration = if (mediaService != null && isServiceBound) {
+                        mediaService?.getDuration()?.toInt() ?: 0
+                    } else {
+                        mediaPlayerManager.getDuration()
+                    }
+                    
+                    if (duration > 0) {
+                        // 修复进度条计算：使用seekBar.max而不是固定的100
+                        val progress = (currentPosition * seekBar.max / duration)
+                        seekBar.progress = progress
+                        tvCurrentTime.text = formatTime(currentPosition)
+                        Log.d(TAG, "进度条更新: 位置=${currentPosition}ms, 总时长=${duration}ms, 进度=${progress}/${seekBar.max}")
+                    } else {
+                        Log.w(TAG, "媒体总时长为0，跳过进度条更新")
+                    }
+                    
+                } catch (e: Exception) {
+                    Log.e(TAG, "进度条更新失败: ${e.message}", e)
+                }
+            } else {
+                Log.d(TAG, "进度条更新跳过: 暂停状态=${isPaused}, 用户拖拽=${isUserSeekingProgress}")
+            }
+            
+            // 继续下一次更新
+            handler.postDelayed(this, 500)
+        }
+    }
 
     private var currentFileUri: Uri? = null
     private var isVideo = true
     private var isFirstPlay = true
     private var isPaused = false
+    private var isUserSeekingProgress = false // 标记用户是否正在拖拽进度条
 
     // 定义可用的倍速列表
     private val playbackSpeeds = floatArrayOf(0.5f, 1.0f, 1.5f, 2.0f, 3.0f)
@@ -99,6 +147,12 @@ class MainActivity : AppCompatActivity(),
     private lateinit var mediaPlayerManager: MediaPlayerManager
     private lateinit var visualizerManager: VisualizerManager
     private lateinit var permissionManager: PermissionManager
+    
+    /** 车载音频音量管理器，用于车载环境下的音量控制 */
+    private var carAudioVolumeManager: CarAudioVolumeManager? = null
+    
+    /** 车载音频是否可用标志 */
+    private var isCarAudioAvailable = false
     
     // MediaSession和MediaController集成
     private var mediaService: MediaService? = null
@@ -203,6 +257,9 @@ class MainActivity : AppCompatActivity(),
         // 初始化 MediaPlayer
         mediaPlayerManager = MediaPlayerManager(this, this)
         
+        // 初始化车载音频管理器
+        initializeCarAudioManager()
+        
         // 绑定MediaService
         bindMediaService()
 
@@ -244,6 +301,7 @@ class MainActivity : AppCompatActivity(),
 
         // ============ 音量、均衡器、可视化等 ============
         initializeVolumeSeekBar()
+        initializePlaybackSeekBar()
         initSoundEffectControls()
         initVisualizerSelection()
 
@@ -802,32 +860,211 @@ class MainActivity : AppCompatActivity(),
     }
 
     // ============ 音量控制 =============
+    
+    /**
+     * 初始化车载音频管理器
+     * 尝试连接车载音频服务，失败时使用标准音频控制
+     */
+    private fun initializeCarAudioManager() {
+        try {
+            Log.d(TAG, "开始初始化车载音频管理器")
+            
+            carAudioVolumeManager = CarAudioVolumeManager(this)
+            isCarAudioAvailable = carAudioVolumeManager?.initialize() ?: false
+            
+            if (isCarAudioAvailable) {
+                Log.d(TAG, "车载音频管理器初始化成功")
+                Log.d(TAG, carAudioVolumeManager?.getStatusInfo() ?: "状态信息获取失败")
+            } else {
+                Log.w(TAG, "车载音频管理器初始化失败，将使用标准音频控制")
+                carAudioVolumeManager = null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "车载音频管理器初始化异常: ${e.message}")
+            isCarAudioAvailable = false
+            carAudioVolumeManager = null
+        }
+    }
+    
+    /**
+     * 初始化音量控制滑块
+     * 优先使用车载音频，降级到标准音频控制
+     */
     private fun initializeVolumeSeekBar() {
-        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val volumePercent = if (maxVolume == 0) 0 else (currentVolume * 100) / maxVolume
+        var volumePercent = 50 // 默认音量
+        
+        // 优先尝试从车载音频获取当前音量
+        if (isCarAudioAvailable && carAudioVolumeManager != null) {
+            val carVolumePercent = carAudioVolumeManager!!.getCurrentVolumePercent()
+            if (carVolumePercent >= 0) {
+                volumePercent = carVolumePercent
+                Log.d(TAG, "从车载音频获取当前音量: $volumePercent%")
+            } else {
+                Log.w(TAG, "车载音频音量获取失败，使用标准音频")
+            }
+        }
+        
+        // 降级到标准音频管理器
+        if (volumePercent == 50) { // 如果没有从车载音频获取到有效值
+            try {
+                val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                volumePercent = if (maxVolume == 0) 0 else (currentVolume * 100) / maxVolume
+                Log.d(TAG, "从标准音频获取当前音量: $volumePercent%")
+            } catch (e: Exception) {
+                Log.e(TAG, "获取标准音频音量失败: ${e.message}")
+                volumePercent = 50 // 使用默认值
+            }
+        }
 
+        // 设置音量滑块
         volumeSeekBar.max = 100
         volumeSeekBar.progress = volumePercent
+        
+        Log.d(TAG, "音量滑块初始化完成: $volumePercent%")
+        
+        // 设置音量变化监听器
         volumeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) setAppVolume(progress)
+                if (fromUser) {
+                    Log.d(TAG, "用户调整音量滑块: $progress%")
+                    setAppVolume(progress)
+                }
             }
-            override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
+            override fun onStartTrackingTouch(sb: SeekBar?) {
+                Log.d(TAG, "用户开始拖拽音量滑块")
+            }
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                Log.d(TAG, "用户停止拖拽音量滑块")
+            }
         })
     }
 
+    /**
+     * 初始化播放进度条控制
+     * 设置播放进度条的监听器，支持用户拖拽跳转播放位置
+     */
+    private fun initializePlaybackSeekBar() {
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            /**
+             * 进度条变化回调
+             * @param seekBar 进度条实例
+             * @param progress 当前进度值
+             * @param fromUser 是否来自用户操作
+             */
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // 用户拖拽进度条时，实时更新时间显示
+                    tvCurrentTime.text = formatTime(progress)
+                    Log.d(TAG, "用户拖拽进度条到: ${progress}ms")
+                }
+            }
+
+            /**
+             * 开始拖拽进度条回调
+             * @param seekBar 进度条实例
+             */
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                Log.d(TAG, "开始拖拽播放进度条")
+                // 暂停进度条自动更新，避免与用户操作冲突
+                isUserSeekingProgress = true
+            }
+
+            /**
+             * 结束拖拽进度条回调
+             * @param seekBar 进度条实例
+             */
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                seekBar?.let { sb ->
+                    val targetPosition = sb.progress
+                    Log.d(TAG, "用户拖拽结束，跳转到位置: ${targetPosition}ms")
+                    
+                    // 跳转到指定位置
+                    mediaPlayerManager.seekTo(targetPosition)
+                    
+                    // 通过MediaService跳转（如果可用）
+                    mediaService?.seekTo(targetPosition.toLong())
+                    
+                    // 恢复进度条自动更新
+                    isUserSeekingProgress = false
+                    
+                    // 如果正在播放，继续更新进度条
+                    if (mediaPlayerManager.isPlaying()) {
+                        updateSeekBar()
+                    }
+                    
+                    AudioCaptureLogger.info(
+                        AudioCaptureLogger.LogCategory.SYSTEM_INFO,
+                        "播放位置已跳转到: ${formatTime(targetPosition)}"
+                    )
+                }
+            }
+        })
+    }
+
+    /**
+     * 设置应用音量
+     * 优先使用车载音频控制，降级到标准音频控制
+     * 
+     * @param volumePercent Int 音量百分比 (0-100)
+     */
+    /**
+     * 设置应用音量
+     * 优先使用车载音频控制，失败时降级到标准音频控制
+     * 
+     * @param volumePercent 音量百分比 (0-100)
+     */
     private fun setAppVolume(volumePercent: Int) {
         Log.d(TAG, "设置应用音量: $volumePercent%")
-        val volume = volumePercent / 100f
         
+        // 验证音量范围
+        val validVolumePercent = volumePercent.coerceIn(0, 100)
+        if (validVolumePercent != volumePercent) {
+            Log.w(TAG, "音量百分比超出范围，已调整: $volumePercent -> $validVolumePercent")
+        }
+        
+        var carAudioSuccess = false
+        
+        // 优先尝试车载音频控制
+        if (isCarAudioAvailable && carAudioVolumeManager != null) {
+            Log.d(TAG, "尝试使用车载音频控制，当前状态: 可用=$isCarAudioAvailable")
+            
+            // 获取车载音频管理器状态信息
+            val statusInfo = carAudioVolumeManager!!.getStatusInfo()
+            Log.d(TAG, "车载音频管理器状态: $statusInfo")
+            
+            carAudioSuccess = carAudioVolumeManager!!.setGroupVolume(validVolumePercent)
+            if (carAudioSuccess) {
+                Log.d(TAG, "车载音频音量设置成功: $validVolumePercent%")
+                
+                // 验证设置结果
+                val currentVolume = carAudioVolumeManager!!.getCurrentVolumePercent()
+                Log.d(TAG, "车载音频当前音量: $currentVolume%")
+                
+                AudioCaptureLogger.info(
+                    AudioCaptureLogger.LogCategory.SYSTEM_INFO,
+                    "车载音频音量已设置为: $validVolumePercent%，实际音量: $currentVolume%"
+                )
+                return
+            } else {
+                Log.w(TAG, "车载音频音量设置失败，降级到标准音频控制")
+                Log.w(TAG, "车载音频失败原因可能: 服务未连接、权限不足或音频组不可用")
+            }
+        } else {
+            Log.d(TAG, "车载音频不可用: 可用标志=$isCarAudioAvailable, 管理器=${carAudioVolumeManager != null}")
+        }
+        
+        // 降级到标准音频控制
+        Log.d(TAG, "使用标准音频控制设置音量")
+        val volume = validVolumePercent / 100f
         mediaPlayerManager.setVolume(volume)
+        
+        Log.d(TAG, "标准音频音量设置完成: $validVolumePercent% (${volume})")
         
         AudioCaptureLogger.info(
             AudioCaptureLogger.LogCategory.SYSTEM_INFO,
-            "应用音量已设置为: $volumePercent% (${volume})"
+            "标准音频音量已设置为: $validVolumePercent% (${volume})"
         )
     }
 
@@ -897,15 +1134,40 @@ class MainActivity : AppCompatActivity(),
             musicInfoDisplay?.toggleMusicInfo(true)
         }
 
-        // 初始化 VisualizerManager
-        visualizerManager = VisualizerManager(mediaPlayerManager.getAudioSessionId(), this)
-        visualizerManager.init()
+        // 初始化 VisualizerManager - 添加权限检查
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "开始初始化VisualizerManager，音频会话ID: ${mediaPlayerManager.getAudioSessionId()}")
+                visualizerManager = VisualizerManager(mediaPlayerManager.getAudioSessionId(), this)
+                visualizerManager.init()
+                
+                // 默认可视化类型
+                visualizerManager.setVisualizerType(VisualizerType.WAVEFORM)
+                Log.d(TAG, "VisualizerManager初始化成功")
+            } else {
+                Log.w(TAG, "缺少RECORD_AUDIO权限，无法初始化VisualizerManager")
+                Toast.makeText(this, "缺少录音权限，可视化功能不可用", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "VisualizerManager初始化失败: ${e.message}", e)
+            Toast.makeText(this, "可视化器初始化失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
 
-        // 初始化音效
-        mediaPlayerManager.initSoundEffects()
-
-        // 默认可视化类型
-        visualizerManager.setVisualizerType(VisualizerType.WAVEFORM)
+        // 初始化音效 - 添加错误处理
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "开始初始化SoundEffectManager")
+                mediaPlayerManager.initSoundEffects()
+                Log.d(TAG, "SoundEffectManager初始化成功")
+            } else {
+                Log.w(TAG, "缺少MODIFY_AUDIO_SETTINGS权限，音效功能可能受限")
+                // 仍然尝试初始化，某些设备可能不需要此权限
+                mediaPlayerManager.initSoundEffects()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "SoundEffectManager初始化失败: ${e.message}", e)
+            Toast.makeText(this, "音效初始化失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
 
         updateSeekBar()
     }
@@ -986,15 +1248,65 @@ class MainActivity : AppCompatActivity(),
         return String.format("%02d:%02d", minutes, seconds)
     }
 
+    /**
+     * 更新播放进度条
+     * 定期更新播放进度条和时间显示，避免在用户拖拽时冲突
+     */
+    /**
+     * 更新播放进度条
+     * 使用播放状态判断而非isPlaying()方法，确保进度条正确更新
+     */
+    /**
+     * 更新进度条显示
+     * 根据当前播放位置更新进度条和时间显示
+     */
     private fun updateSeekBar() {
-        handler.postDelayed({
-            if (mediaPlayerManager.isPlaying()) {
-                val currentPosition = mediaPlayerManager.getCurrentPosition()
-                seekBar.progress = currentPosition
-                tvCurrentTime.text = formatTime(currentPosition)
-                updateSeekBar()
+        Log.d(TAG, "updateSeekBar调用开始 - 暂停状态: $isPaused, 用户拖拽: $isUserSeekingProgress")
+        
+        // 使用播放状态判断而非isPlaying()方法
+        if (!isPaused && !isUserSeekingProgress) {
+            try {
+                // 优先从MediaService获取位置
+                val currentPosition: Int = if (mediaService != null && isServiceBound) {
+                    val servicePosition = mediaService?.getCurrentPosition() ?: 0L
+                    Log.d(TAG, "从MediaService获取播放位置: ${servicePosition}ms")
+                    servicePosition.toInt()
+                } else {
+                    val managerPosition = mediaPlayerManager.getCurrentPosition()
+                    Log.d(TAG, "从MediaPlayerManager获取播放位置: ${managerPosition}ms")
+                    managerPosition
+                }
+                
+                val duration = if (mediaService != null && isServiceBound) {
+                    mediaService?.getDuration()?.toInt() ?: 0
+                } else {
+                    mediaPlayerManager.getDuration()
+                }
+                
+                if (duration > 0) {
+                    // 修复进度条计算：使用seekBar.max而不是固定的100
+                    val progress = (currentPosition * seekBar.max / duration)
+                    val oldProgress = seekBar.progress
+                    seekBar.progress = progress
+                    val oldTimeText = tvCurrentTime.text
+                    tvCurrentTime.text = formatTime(currentPosition)
+                    
+                    Log.d(TAG, "进度条更新完成: 位置=${currentPosition}ms, 总时长=${duration}ms, 进度=${progress}/${seekBar.max}, 进度条: $oldProgress -> $progress, 时间: $oldTimeText -> ${formatTime(currentPosition)}")
+                } else {
+                    Log.w(TAG, "媒体总时长为0，跳过进度条更新")
+                }
+                
+                // 检查MediaService状态
+                if (mediaService != null) {
+                    Log.d(TAG, "MediaService状态: 是否播放=${mediaService?.isPlaying()}, 服务绑定=${isServiceBound}")
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "更新进度条时发生错误", e)
             }
-        }, 500)
+        } else {
+            Log.d(TAG, "进度条更新跳过: 暂停状态=${isPaused}, 用户拖拽=${isUserSeekingProgress}")
+        }
     }
 
     fun adjustVideoSize(videoWidth: Int, videoHeight: Int) {
@@ -1610,6 +1922,12 @@ class MainActivity : AppCompatActivity(),
             // 清理音频捕获资源
             cleanupAudioCaptureResources()
             
+            // 释放车载音频资源
+            carAudioVolumeManager?.release()
+            carAudioVolumeManager = null
+            isCarAudioAvailable = false
+            Log.d(TAG, "车载音频资源已释放")
+            
             // 释放媒体播放器资源
             mediaPlayerManager.release()
             
@@ -1864,8 +2182,7 @@ class MainActivity : AppCompatActivity(),
                 mediaService?.play()
             }
             
-            isPaused = false
-            updateSeekBar()
+            // 移除立即调用updateSeekBar()，依赖onPlaybackStateChanged回调触发
             
         } catch (e: Exception) {
             Log.e(TAG, "使用MediaService播放失败", e)
@@ -1979,16 +2296,81 @@ class MainActivity : AppCompatActivity(),
      * 播放状态变化回调
      * @param state 播放状态
      */
+    /**
+     * 播放状态变化回调
+     * 处理播放状态变化，更新UI状态并控制进度条更新
+     * 
+     * @param state 播放状态常量
+     */
     override fun onPlaybackStateChanged(state: Int) {
         Log.d(TAG, "播放状态变化: $state")
+        Log.d(TAG, "状态常量对比 - STATE_PLAYING=${android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING}, STATE_PAUSED=${android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED}, STATE_STOPPED=${android.support.v4.media.session.PlaybackStateCompat.STATE_STOPPED}")
+        Log.d(TAG, "MediaService可用性: ${mediaService != null}, 服务绑定: $isServiceBound")
+        
         runOnUiThread {
-            // 更新UI状态
-            isPaused = (state != android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING)
+            val oldPaused = isPaused
             
-            // 可以在这里更新播放按钮状态等UI元素
-            if (state == android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING) {
-                updateSeekBar()
+            // 根据具体状态值进行判断和处理
+            when (state) {
+                android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING -> {
+                    isPaused = false
+                    Log.d(TAG, "匹配STATE_PLAYING常量(${android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING})，开始播放，启动进度条更新")
+                    // 使用Handler启动进度条更新
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                    handler.post(updateSeekBarRunnable)
+                }
+                android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED -> {
+                    isPaused = true
+                    Log.d(TAG, "匹配STATE_PAUSED常量(${android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED})，播放暂停，停止进度条更新")
+                    // 停止进度条更新
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                }
+                android.support.v4.media.session.PlaybackStateCompat.STATE_STOPPED -> {
+                    isPaused = true
+                    Log.d(TAG, "匹配STATE_STOPPED常量(${android.support.v4.media.session.PlaybackStateCompat.STATE_STOPPED})，播放停止，重置进度条")
+                    // 停止进度条更新并重置
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                    seekBar.progress = 0
+                    tvCurrentTime.text = formatTime(0)
+                }
+                1 -> { // STATE_STOPPED的实际值
+                    isPaused = true
+                    Log.d(TAG, "状态值1(实际STOPPED)，重置进度条")
+                    // 停止进度条更新并重置
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                    seekBar.progress = 0
+                    tvCurrentTime.text = formatTime(0)
+                }
+                2 -> { // 实际播放状态值 - 根据日志这是播放状态
+                    isPaused = false
+                    Log.d(TAG, "状态值2(实际PLAYING)，启动进度条更新")
+                    Log.d(TAG, "当前MediaService是否可用: ${mediaService != null}")
+                    // 使用Handler启动进度条更新
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                    handler.post(updateSeekBarRunnable)
+                }
+                3 -> { // STATE_PLAYING的实际值
+                    isPaused = false
+                    Log.d(TAG, "状态值3(标准PLAYING)，启动进度条更新")
+                    // 使用Handler启动进度条更新
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                    handler.post(updateSeekBarRunnable)
+                }
+                4 -> { // STATE_PAUSED的实际值
+                    isPaused = true
+                    Log.d(TAG, "状态值4(标准PAUSED)，停止进度条更新")
+                    // 停止进度条更新
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                }
+                else -> {
+                    isPaused = true
+                    Log.d(TAG, "未知播放状态: $state，停止进度条更新")
+                    // 停止进度条更新
+                    handler.removeCallbacks(updateSeekBarRunnable)
+                }
             }
+            
+            Log.d(TAG, "播放状态更新完成: 旧状态暂停=$oldPaused, 新状态暂停=$isPaused")
         }
     }
     

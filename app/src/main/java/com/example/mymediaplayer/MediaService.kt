@@ -17,7 +17,7 @@ import android.util.Log
 class MediaService : Service(), MediaSessionManager.MediaSessionCallback {
     
     companion object {
-        private const val TAG = "MediaService"
+        private const val TAG = "zqqtest-MediaService"
     }
     
     // 服务绑定器
@@ -131,6 +131,21 @@ class MediaService : Service(), MediaSessionManager.MediaSessionCallback {
                 
                 // 更新MediaSession播放状态
                 mediaSessionManager?.updatePlaybackState(2) // STATE_PAUSED
+            }
+            
+            /**
+             * 播放状态变化回调
+             * 当MediaPlayerManager中的播放状态发生变化时调用
+             * @param state 播放状态，使用PlaybackStateCompat中的常量
+             */
+            override fun onPlaybackStateChanged(state: Int) {
+                Log.d(TAG, "播放状态变化: state=$state")
+                
+                // 更新MediaSession播放状态
+                mediaSessionManager?.updatePlaybackState(state)
+                
+                // 通知服务回调
+                serviceCallback?.onPlaybackStateChanged(state)
             }
         })
     }

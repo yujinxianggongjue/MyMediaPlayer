@@ -16,7 +16,7 @@ import android.util.Log
 class MediaControllerManager(private val context: Context) {
     
     companion object {
-        private const val TAG = "MediaControllerManager"
+        private const val TAG = "zqqtestMediaControllerManager"
     }
     
     // MediaController实例

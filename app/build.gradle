@@ -87,6 +87,9 @@ dependencies {
     // 添加framework.jar以访问SystemApi
     compileOnly files('libs/framework.jar')
     
+    // 添加android.car库以访问Car API
+    compileOnly files('libs/android.car-v1.2.0-snapshot.jar')
+    
     implementation libs.androidx.core.ktx
     
     // 使用兼容版本的lifecycle库

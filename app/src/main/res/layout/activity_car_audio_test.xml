@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/black"
+    tools:context=".CarAudioTestActivity">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="车载音频控制测试"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:gravity="center"
+        android:layout_marginBottom="24dp" />
+
+    <!-- 音频模式显示 -->
+    <TextView
+        android:id="@+id/audioModeTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="当前模式: 初始化中..."
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:background="@drawable/rounded_background"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 音量控制区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/rounded_background"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp">
+
+        <!-- 音量显示文本 -->
+        <TextView
+            android:id="@+id/volumeTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="音量: 0% (0/0)"
+            android:textSize="18sp"
+            android:textColor="@color/white"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 音量进度条 -->
+        <ProgressBar
+            android:id="@+id/volumeProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="@color/teal_200"
+            android:progressBackgroundTint="@color/teal_700"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 音量控制按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/volumeDownButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="音量 -"
+                android:textSize="16sp"
+                android:backgroundTint="@color/purple_500"
+                android:textColor="@color/white"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/volumeUpButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="音量 +"
+                android:textSize="16sp"
+                android:backgroundTint="@color/purple_500"
+                android:textColor="@color/white"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 状态信息按钮 -->
+    <Button
+        android:id="@+id/getStatusButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="获取状态信息"
+        android:textSize="16sp"
+        android:backgroundTint="@color/teal_700"
+        android:textColor="@color/white"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 状态信息显示区域 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/rounded_background"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/statusTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="状态信息将在这里显示..."
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="2dp" />
+
+    </ScrollView>
+
+</LinearLayout>

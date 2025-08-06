@@ -14,9 +14,25 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT" />
+    <!-- 音频效果相关权限 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CONTROL_LOCATION_UPDATES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    
+    <!-- 车载相关权限 -->
+    <uses-permission android:name="android.car.permission.CAR_AUDIO" />
+    <uses-permission android:name="android.car.permission.ACCESS_CAR_AUDIO" />
+    <uses-permission android:name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME" />
+    <uses-permission android:name="android.car.permission.CAR_CONTROL_AUDIO_SETTINGS" />
+    <!-- 用户提供的关键权限 -->
+    <uses-permission android:name="android.car.permission.CAR_MONITOR_AUDIO" />
 
+    <!-- 车载特性声明 -->
+    <uses-feature
+        android:name="android.hardware.type.automotive"
+        android:required="false" />
+    
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -52,6 +68,11 @@
         
         <service
             android:name=".MediaService"
+            android:exported="false" />
+        
+        <!-- 车载媒体监控服务 -->
+        <service
+            android:name=".CarMediaMonitorService"
             android:exported="false" />
     </application>
 

@@ -17,4 +17,10 @@ interface MediaPlayerListener {
      * 当媒体播放完成时调用。
      */
     fun onCompletion()
+    
+    /**
+     * 当播放状态发生变化时调用。
+     * @param state 播放状态，使用 PlaybackStateCompat 中的常量
+     */
+    fun onPlaybackStateChanged(state: Int)
 }

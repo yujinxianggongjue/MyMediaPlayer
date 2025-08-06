@@ -27,7 +27,7 @@ class MediaSessionManager(
     private val mediaPlayerManager: MediaPlayerManager
 ) {
     companion object {
-        private const val TAG = "MediaSessionManager"
+        private const val TAG = "zqqtest-MediaSessionManager"
         private const val MEDIA_SESSION_TAG = "MyMediaPlayerSession"
         
         // 播放状态常量
