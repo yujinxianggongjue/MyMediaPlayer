@@ -1012,7 +1012,7 @@ class MainActivity : AppCompatActivity(),
             if (resultCode == RESULT_OK && data != null) {
                 Log.d(TAG, "MediaProjection权限获取成功，启动MediaCaptureService")
                 
-                // 根据用户Java代码逻辑，直接启动AudioCaptureService
+                //直接启动AudioCaptureService
                 val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
                     action = AudioCaptureService.ACTION_START
                     putExtra(AudioCaptureService.EXTRA_RESULT_CODE, resultCode)

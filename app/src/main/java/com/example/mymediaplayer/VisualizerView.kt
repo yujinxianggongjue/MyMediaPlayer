@@ -129,7 +129,7 @@ class VisualizerView : View {
     private fun drawBarGraph(canvas: Canvas) {
         mFftBytes?.let { bytes ->
             Log.d(TAG, "开始绘制柱状图")
-            val numBars = 50 // 柱状图的柱数
+            val numBars = 500 // 柱状图的柱数
             val barWidth = width / numBars.toFloat()
             val maxHeight = height.toFloat()
 
