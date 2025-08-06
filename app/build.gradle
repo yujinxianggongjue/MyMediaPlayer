@@ -94,6 +94,11 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-common:2.6.2'
     implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
     
+    // 添加Media相关依赖
+    implementation 'androidx.media:media:1.6.0'
+    implementation 'androidx.media2:media2-session:1.2.1'
+    implementation 'androidx.media2:media2-widget:1.2.1'
+    
     implementation libs.androidx.activity.compose
     implementation platform(libs.androidx.compose.bom)
     implementation libs.androidx.ui

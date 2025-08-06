@@ -1,9 +1,11 @@
 package com.example.mymediaplayer
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.projection.MediaProjectionManager
@@ -13,8 +15,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import android.view.Gravity
 import android.view.SurfaceHolder
@@ -40,7 +45,8 @@ import com.example.mymediaplayer.AudioCaptureStrategyManager
 class MainActivity : AppCompatActivity(),
     MediaPlayerListener,
     VisualizerListener,
-    PermissionCallback {
+    PermissionCallback,
+    MediaService.MediaServiceCallback {
 
     companion object {
         private const val REQUEST_CODE_OPEN_FILE = 1
@@ -93,6 +99,46 @@ class MainActivity : AppCompatActivity(),
     private lateinit var mediaPlayerManager: MediaPlayerManager
     private lateinit var visualizerManager: VisualizerManager
     private lateinit var permissionManager: PermissionManager
+    
+    // MediaSession和MediaController集成
+    private var mediaService: MediaService? = null
+    private var isServiceBound = false
+    
+    /**
+     * MediaService服务连接
+     * 管理与MediaService的绑定和解绑
+     */
+    private val serviceConnection = object : ServiceConnection {
+        /**
+         * 服务连接成功回调
+         * @param name 组件名称
+         * @param service 服务绑定器
+         */
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            Log.d(TAG, "MediaService连接成功")
+            val binder = service as MediaService.MediaServiceBinder
+            mediaService = binder.getService()
+            isServiceBound = true
+            
+            // 设置服务回调
+            mediaService?.setServiceCallback(this@MainActivity)
+            
+            // 如果有待播放的媒体，初始化播放
+            currentFileUri?.let { uri ->
+                initializeMediaWithService(uri)
+            }
+        }
+        
+        /**
+         * 服务断开连接回调
+         * @param name 组件名称
+         */
+        override fun onServiceDisconnected(name: ComponentName?) {
+            Log.d(TAG, "MediaService连接断开")
+            mediaService = null
+            isServiceBound = false
+        }
+    }
 
     // 视频容器布局
     private lateinit var videoContainer: FrameLayout
@@ -156,6 +202,9 @@ class MainActivity : AppCompatActivity(),
 
         // 初始化 MediaPlayer
         mediaPlayerManager = MediaPlayerManager(this, this)
+        
+        // 绑定MediaService
+        bindMediaService()
 
         // SurfaceHolder 回调
         val surfaceHolder = surfaceView.holder
@@ -174,9 +223,9 @@ class MainActivity : AppCompatActivity(),
         })
 
         // ============ 播放控制按钮 ============
-        btnPlay.setOnClickListener { playOrResume() }
-        btnPause.setOnClickListener { pausePlayback() }
-        btnStopplay.setOnClickListener { stopPlayback() }
+        btnPlay.setOnClickListener { playOrResumeWithService() }
+        btnPause.setOnClickListener { pausePlaybackWithService() }
+        btnStopplay.setOnClickListener { stopPlaybackWithService() }
         btnOpenFile.setOnClickListener { openFile() }
         btnSpeed.setOnClickListener { changePlaybackSpeed() }
         btnEffects.setOnClickListener { toggleSoundEffects() }
@@ -1555,6 +1604,9 @@ class MainActivity : AppCompatActivity(),
         Log.d(TAG, "onDestroy")
         
         try {
+            // 解绑MediaService
+            unbindMediaService()
+            
             // 清理音频捕获资源
             cleanupAudioCaptureResources()
             
@@ -1724,4 +1776,286 @@ class MainActivity : AppCompatActivity(),
             Log.e(TAG, "清理非必要资源时发生错误", e)
         }
     }
+    
+    // ============ MediaService集成方法 ============
+    
+    /**
+     * 绑定MediaService
+     * 启动并绑定MediaService以支持MediaSession和MediaController功能
+     */
+    private fun bindMediaService() {
+        try {
+            Log.d(TAG, "开始绑定MediaService")
+            val intent = Intent(this, MediaService::class.java)
+            
+            // 启动服务
+            startService(intent)
+            
+            // 绑定服务
+            val bindResult = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+            Log.d(TAG, "MediaService绑定结果: $bindResult")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "绑定MediaService失败", e)
+            Toast.makeText(this, "媒体服务启动失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 解绑MediaService
+     * 在Activity销毁时解绑MediaService
+     */
+    private fun unbindMediaService() {
+        try {
+            if (isServiceBound) {
+                Log.d(TAG, "解绑MediaService")
+                unbindService(serviceConnection)
+                isServiceBound = false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "解绑MediaService失败", e)
+        }
+    }
+    
+    /**
+     * 使用MediaService初始化媒体
+     * @param uri 媒体文件URI
+     */
+    private fun initializeMediaWithService(uri: Uri) {
+        try {
+            Log.d(TAG, "使用MediaService初始化媒体: $uri")
+            mediaService?.initializeMedia(
+                fileUri = uri,
+                isVideo = isVideo,
+                title = "当前播放",
+                artist = "未知艺术家",
+                album = "未知专辑"
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "使用MediaService初始化媒体失败", e)
+            Toast.makeText(this, "媒体初始化失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 使用MediaService播放或恢复播放
+     * 通过MediaService控制播放，支持MediaSession集成
+     */
+    private fun playOrResumeWithService() {
+        try {
+            Log.d(TAG, "使用MediaService播放或恢复播放")
+            
+            if (mediaService == null) {
+                Log.w(TAG, "MediaService未连接，使用传统播放方式")
+                playOrResume()
+                return
+            }
+            
+            if (isFirstPlay) {
+                Log.d(TAG, "首次播放，初始化媒体")
+                currentFileUri?.let { uri ->
+                    initializeMediaWithService(uri)
+                    mediaService?.play()
+                    isFirstPlay = false
+                }
+            } else {
+                Log.d(TAG, "恢复播放")
+                mediaService?.play()
+            }
+            
+            isPaused = false
+            updateSeekBar()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "使用MediaService播放失败", e)
+            // 降级到传统播放方式
+            playOrResume()
+        }
+    }
+    
+    /**
+     * 使用MediaService暂停播放
+     * 通过MediaService控制暂停，支持MediaSession集成
+     */
+    private fun pausePlaybackWithService() {
+        try {
+            Log.d(TAG, "使用MediaService暂停播放")
+            
+            if (mediaService == null) {
+                Log.w(TAG, "MediaService未连接，使用传统暂停方式")
+                pausePlayback()
+                return
+            }
+            
+            mediaService?.pause()
+            isPaused = true
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "使用MediaService暂停失败", e)
+            // 降级到传统暂停方式
+            pausePlayback()
+        }
+    }
+    
+    /**
+     * 使用MediaService停止播放
+     * 通过MediaService控制停止，支持MediaSession集成
+     */
+    private fun stopPlaybackWithService() {
+        try {
+            Log.d(TAG, "使用MediaService停止播放")
+            
+            if (mediaService == null) {
+                Log.w(TAG, "MediaService未连接，使用传统停止方式")
+                stopPlayback()
+                return
+            }
+            
+            mediaService?.stop()
+            isPaused = false
+            isFirstPlay = true
+            
+            // 重置UI状态
+            seekBar.progress = 0
+            tvCurrentTime.text = formatTime(0)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "使用MediaService停止失败", e)
+            // 降级到传统停止方式
+            stopPlayback()
+        }
+    }
+    
+    /**
+     * 使用MediaService开始录制
+     * 通过MediaService控制录制，支持MediaSession集成
+     */
+    private fun startRecordingWithService() {
+        try {
+            Log.d(TAG, "使用MediaService开始录制")
+            
+            if (mediaService == null) {
+                Log.w(TAG, "MediaService未连接，使用传统录制方式")
+                startRecording()
+                return
+            }
+            
+            mediaService?.startRecording(currentResultCode, resultData)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "使用MediaService开始录制失败", e)
+            // 降级到传统录制方式
+            startRecording()
+        }
+    }
+    
+    /**
+     * 使用MediaService停止录制
+     * 通过MediaService控制录制停止，支持MediaSession集成
+     */
+    private fun stopRecordingWithService() {
+        try {
+            Log.d(TAG, "使用MediaService停止录制")
+            
+            if (mediaService == null) {
+                Log.w(TAG, "MediaService未连接，使用传统停止录制方式")
+                stopRecording()
+                return
+            }
+            
+            mediaService?.stopRecording()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "使用MediaService停止录制失败", e)
+            // 降级到传统停止录制方式
+            stopRecording()
+        }
+    }
+    
+    // ============ MediaService.MediaServiceCallback实现 ============
+    
+    /**
+     * 播放状态变化回调
+     * @param state 播放状态
+     */
+    override fun onPlaybackStateChanged(state: Int) {
+        Log.d(TAG, "播放状态变化: $state")
+        runOnUiThread {
+            // 更新UI状态
+            isPaused = (state != android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING)
+            
+            // 可以在这里更新播放按钮状态等UI元素
+            if (state == android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING) {
+                updateSeekBar()
+            }
+        }
+    }
+    
+    /**
+     * 媒体元数据变化回调
+     * @param metadata 媒体元数据
+     */
+    override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
+        Log.d(TAG, "媒体元数据变化")
+        runOnUiThread {
+            // 更新UI显示的媒体信息
+            if (metadata != null) {
+                val title = metadata.getString(MediaMetadataCompat.METADATA_KEY_TITLE)
+                val artist = metadata.getString(MediaMetadataCompat.METADATA_KEY_ARTIST)
+                val duration = metadata.getLong(MediaMetadataCompat.METADATA_KEY_DURATION)
+                
+                // 更新UI元素
+                tvArtist.text = artist ?: "未知艺术家"
+                tvTotalTime.text = formatTime(duration.toInt())
+            } else {
+                // 元数据为空时的默认处理
+                tvArtist.text = "未知艺术家"
+                tvTotalTime.text = "00:00"
+            }
+        }
+    }
+    
+    /**
+     * 录制状态变化回调
+     * @param isRecording 是否正在录制
+     */
+    override fun onRecordingStateChanged(isRecording: Boolean) {
+        Log.d(TAG, "录制状态变化: $isRecording")
+        runOnUiThread {
+            // 更新录制相关UI状态
+            isCapturing = isRecording
+            isAudioCaptureActive = isRecording
+            updateCaptureButtonText()
+        }
+    }
+    
+    /**
+     * 音频焦点变化回调
+     * @param focusChange 音频焦点变化类型
+     */
+    override fun onAudioFocusChanged(focusChange: Int) {
+        Log.d(TAG, "音频焦点变化: $focusChange")
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                // 永久失去音频焦点，暂停播放
+                pausePlaybackWithService()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                // 暂时失去音频焦点，暂停播放
+                pausePlaybackWithService()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // 暂时失去音频焦点但可以降低音量继续播放
+                // 这里可以降低音量或暂停播放
+                pausePlaybackWithService()
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                // 重新获得音频焦点，可以恢复播放
+                // 根据之前的播放状态决定是否恢复播放
+                Log.d(TAG, "重新获得音频焦点")
+            }
+        }
+    }
+
 }
